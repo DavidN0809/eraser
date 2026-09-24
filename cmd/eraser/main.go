@@ -62,6 +62,7 @@ func command() *cobra.Command {
 		}
 		return &service.Service{Config: cfg, Brokers: db, Engine: engine, History: store}, nil
 	}
+	addDiscoveryCommands(root, load)
 	var addr string
 	serve := &cobra.Command{Use: "serve", RunE: func(cmd *cobra.Command, args []string) error {
 		svc, err := load()

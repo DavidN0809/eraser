@@ -13,6 +13,9 @@ email:
     username: person@example.invalid
     password_file: /run/secrets/smtp_password
     tls_mode: implicit # or starttls (usually port 587); no plaintext mode
+discovery:
+  api_key_file: /run/secrets/discovery_api_key
+  fields: [name] # explicitly selected: name, city, state, email, phone; no DOB/address
 options:
   dry_run: true
   template: generic

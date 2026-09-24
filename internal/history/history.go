@@ -45,7 +45,15 @@ func NewStore(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db}, nil
+	store := &Store{db}
+	if err = store.initDiscovery(); err == nil {
+		err = store.PurgeExpiredDiscovery()
+	}
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return store, nil
 }
 func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) Add(r *Record) error {

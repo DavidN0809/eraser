@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"github.com/eraser-privacy/eraser/internal/broker"
 	"github.com/eraser-privacy/eraser/internal/config"
+	"github.com/eraser-privacy/eraser/internal/discovery"
 	"github.com/eraser-privacy/eraser/internal/history"
 	templates "github.com/eraser-privacy/eraser/internal/template"
 	"io"
@@ -87,7 +88,7 @@ func TestApprovedDeliveryPersistsMinimizedResult(t *testing.T) {
 	}()
 	_, portString, _ := net.SplitHostPort(ln.Addr().String())
 	port, _ := strconv.Atoi(portString)
-	cfg := &config.Config{Profile: config.Profile{FirstName: "Synthetic", LastName: "Person", Phone: "NEVER-DISCLOSE-PHONE", DateOfBirth: "NEVER-DISCLOSE-DOB"}, Email: config.EmailConfig{Provider: "smtp", From: "sender@example.invalid", SMTP: config.SMTPConfig{Host: "127.0.0.1", Port: port, TLSMode: "implicit"}}, Options: config.Options{Template: "generic", RateLimitMs: 2000, ApprovedBrokers: map[string]config.Approval{"fixture": {Email: "broker@example.invalid", Fields: []string{"name"}}}}}
+	cfg := &config.Config{Discovery: config.DiscoveryConfig{Fields: []string{"name"}}, Profile: config.Profile{FirstName: "Synthetic", LastName: "Person", Phone: "NEVER-DISCLOSE-PHONE", DateOfBirth: "NEVER-DISCLOSE-DOB"}, Email: config.EmailConfig{Provider: "smtp", From: "sender@example.invalid", SMTP: config.SMTPConfig{Host: "127.0.0.1", Port: port, TLSMode: "implicit"}}, Options: config.Options{Template: "generic", RateLimitMs: 2000, ApprovedBrokers: map[string]config.Approval{"fixture": {Email: "broker@example.invalid", Fields: []string{"name"}}}}}
 	h, e := history.NewStore(filepath.Join(d, "history.db"))
 	if e != nil {
 		t.Fatal(e)
@@ -97,7 +98,33 @@ func TestApprovedDeliveryPersistsMinimizedResult(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	svc := &Service{Config: cfg, History: h, Engine: engine, Brokers: &broker.BrokerDatabase{Brokers: []broker.Broker{{ID: "fixture", Email: "broker@example.invalid"}}}}
+	svc := &Service{Config: cfg, History: h, Engine: engine, Brokers: &broker.BrokerDatabase{Brokers: []broker.Broker{{ID: "fixture", Website: "https://broker.example.invalid", Email: "broker@example.invalid"}}}}
+	// A send must fail before any SMTP connection until a candidate is manually confirmed.
+	if _, e = svc.Send(context.Background(), "fixture"); e == nil || !strings.Contains(e.Error(), "confirmed discovery match") {
+		t.Fatal("missing evidence allowed", e)
+	}
+	plan, e := svc.DiscoveryPlan("fixture")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = h.SaveScan(plan, []discovery.Match{{URL: "https://broker.example.invalid/person"}}); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = svc.Send(context.Background(), "fixture"); e == nil {
+		t.Fatal("pending evidence allowed")
+	}
+	matches, e := h.Matches()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = svc.ReviewMatch(matches[0].ID, "confirmed"); e != nil {
+		t.Fatal(e)
+	}
+	cfg.Profile.Email = "changed@example.invalid"
+	if _, e = svc.Send(context.Background(), "fixture"); e == nil {
+		t.Fatal("changed identity allowed")
+	}
+	cfg.Profile.Email = ""
 	result, e := svc.Send(context.Background(), "fixture")
 	if e != nil || !result.Success {
 		t.Fatalf("legitimate TLS delivery failed: %v %+v", e, result)

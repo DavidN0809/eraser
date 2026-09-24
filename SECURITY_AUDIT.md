@@ -156,3 +156,37 @@ candidate artifact, verifies its checksum and rescans it before login/push.
 Source tests and pull requests run with contents-read permission only and never
 receive publishing secrets. The publishing runner never checks out or executes
 repository source code.
+
+## Discovery-first feature delta (2026-09-24)
+
+`feature/discovery-first` adds explicit, one-broker-at-a-time Brave index searches
+and requires reviewed evidence before delivery. It does not restore the removed
+browser, form filling or inbox automation. This section supplements the baseline
+review above; it is not a new independent repository-wide audit.
+
+| Severity | Risk | Controls and remaining limits |
+|---|---|---|
+| Medium | Search terms disclose identifiers to a third-party index provider. | Disabled deployment gate; separately mounted API secret; exact query preview and explicit approval. Only selected name/city/state/email/phone; no DOB/address. One selected broker/domain, no automatic search or retry. Provider sees query/IP/account and may retain data; verify your plan. |
+| Medium | False positives/stale snippets could cause new disclosure to a broker. | Results remain pending until human confirmation. Every actual send checks current confirmed evidence plus existing exact-recipient, field, preview and SMTP gates. Profile/target/query changes, rescan, rejection, deletion and 30-day expiry revoke eligibility. Search index coverage is incomplete; no-result is never proof of absence. Humans can still misidentify a result. |
+| Medium | Discovery creates a new local store of sensitive URL/title/snippet evidence. | SQLite 0600, parameterized statements, secure_delete, bounded fields/results, no API keys or raw profile/query snapshots. Evidence expires after 30 days; cleanup at startup/next approved search and explicit deletion. Disk/backup encryption remains an operator responsibility. Fingerprints can be sensitive to offline guessing and are protected like PII. |
+| Low | Untrusted search results, redirects or API errors could introduce SSRF/XSS/log leakage. | Fixed HTTPS API endpoint, verified TLS1.2+, no environment proxy, cookies, redirect following, result fetching or remote assets. Domain-filtered HTTPS candidates, escaped HTML/plain-text URLs, terminal-quoted evidence, generic errors. 15s client deadline, 1MiB response, 20 results, bounded strings and no retries. API/provider compromise can still fabricate misleading evidence. |
+
+All discovery routes retain authentication/Host/CSRF enforcement. Search approvals
+are single-use, five-minute and bound to the current plan. CLI execution requires
+the exact query/profile digest. `discover --dry-run` never constructs a client;
+mail `options.dry_run` still blocks every delivery but intentionally permits an
+explicitly approved active search. Discovery has no SMTP dependency or call path.
+A confirmed candidate never bypasses existing mail approval controls. No live
+search API credentials, personal data or broker requests were used in development.
+
+The baseline statement that new delivery rows hold only metadata still applies
+to `delivery_history`; the new discovery tables explicitly contain sensitive
+evidence. Old images do not enforce the new confirmed-match gate: rolling back
+to main must keep sending disabled until that behavior is reviewed. Added tables
+are additive; rollback does not erase their PII.
+
+Validation adds local TLS search fixtures, domain/redirect filtering, bounded
+responses, redacted errors, query minimization/injection checks, disabled-secret
+gates, persistent confirmation/revocation/expiry, send denial without current
+confirmed evidence, and authenticated CSRF-protected search approval/replay tests.
+The same CI suite builds/scans feature candidates without publishing `stable`.

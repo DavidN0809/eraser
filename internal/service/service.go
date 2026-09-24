@@ -9,6 +9,7 @@ import (
 
 	"github.com/eraser-privacy/eraser/internal/broker"
 	"github.com/eraser-privacy/eraser/internal/config"
+	"github.com/eraser-privacy/eraser/internal/discovery"
 	"github.com/eraser-privacy/eraser/internal/email"
 	"github.com/eraser-privacy/eraser/internal/history"
 	templates "github.com/eraser-privacy/eraser/internal/template"
@@ -21,6 +22,7 @@ type Service struct {
 	Engine      *templates.Engine
 	mu          sync.Mutex
 	lastAttempt time.Time
+	lastSearch  time.Time
 }
 
 func (s *Service) Preview(id string) (email.Message, error) {
@@ -53,6 +55,14 @@ func (s *Service) Send(ctx context.Context, id string) (email.Result, error) {
 	if err != nil {
 		return email.Result{}, err
 	}
+	plan, err := s.DiscoveryPlan(id)
+	if err != nil {
+		return email.Result{}, err
+	}
+	confirmed, err := s.History.HasConfirmed(plan)
+	if err != nil || !confirmed {
+		return email.Result{}, fmt.Errorf("removal requires a current, manually confirmed discovery match")
+	}
 	sender, err := email.NewSender(s.Config)
 	if err != nil {
 		return email.Result{}, err
@@ -79,4 +89,58 @@ func (s *Service) Send(ctx context.Context, id string) (email.Result, error) {
 		return result, fmt.Errorf("delivery attempted but result could not be recorded; inspect history before retrying")
 	}
 	return result, nil
+}
+
+// DiscoveryPlan applies region/exclusion policy without requiring permission to send mail.
+func (s *Service) DiscoveryPlan(id string) (discovery.Plan, error) {
+	for _, b := range s.Brokers.Filter(s.Config.Options.Regions, s.Config.Options.ExcludedBrokers) {
+		if b.ID == id {
+			return discovery.BuildPlan(s.Config, b)
+		}
+	}
+	return discovery.Plan{}, fmt.Errorf("unknown or excluded broker")
+}
+func (s *Service) Discover(ctx context.Context, id, digest string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	plan, err := s.DiscoveryPlan(id)
+	if err != nil {
+		return 0, err
+	}
+	if digest != plan.Fingerprint {
+		return 0, fmt.Errorf("search approval does not match current plan")
+	}
+	if time.Since(s.lastSearch) < 2*time.Second {
+		return 0, fmt.Errorf("please wait before another search")
+	}
+	s.lastSearch = time.Now()
+	if err = s.History.PurgeExpiredDiscovery(); err != nil {
+		return 0, fmt.Errorf("cannot expire discovery evidence")
+	}
+	matches, err := discovery.Search(ctx, s.Config, plan)
+	if err != nil {
+		return 0, err
+	}
+	if err = s.History.SaveScan(plan, matches); err != nil {
+		return 0, fmt.Errorf("cannot save discovery results")
+	}
+	return len(matches), nil
+}
+func (s *Service) ReviewMatch(id, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	broker, err := s.History.MatchBroker(id)
+	if err != nil {
+		return fmt.Errorf("unknown match")
+	}
+	plan, err := s.DiscoveryPlan(broker)
+	if err != nil {
+		return err
+	}
+	return s.History.ReviewMatch(id, plan.Fingerprint, status)
+}
+func (s *Service) ForgetDiscovery(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.History.ForgetDiscovery(id)
 }

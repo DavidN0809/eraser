@@ -1,7 +1,8 @@
 # Eraser — maintained self-hosted fork
 
-An authenticated, single-user application for reviewing and sending **individual,
-explicitly approved** data-broker removal requests. No real requests are sent on
+An authenticated, single-user application to **search first, review candidates,
+then approve individual removal requests**. Removal requires a current match that
+you have manually confirmed belongs to you. No real requests are sent on
 installation, startup, preview, restart, CI, or dry-run.
 
 - Source of truth: [Nichols-HomeLab/eraser on Gitea](https://git.nicholstech.org/Nichols-HomeLab/eraser)
@@ -18,12 +19,22 @@ in your mail client. The broker catalog remains a set of **unverified leads**;
 it is not evidence that any broker holds your information. Sending even an empty
 request reveals your sender email and can create a new association.
 
+## Feature branch: discovery first
+
+This feature is on `feature/discovery-first`; the published `stable` image still
+contains the main-branch release until this branch is reviewed and merged.
+To try the branch in Compose, prepare secrets as below, then build it explicitly:
+`ERASER_IMAGE=eraser:discovery docker compose up -d --build`.
+For Kubernetes, build/push this branch to your private registry under a separate
+tag and set its digest in `k8s/20-deployment.yaml` before applying; do not overwrite
+`stable` for a feature trial. No live searches run at startup.
+
 ## Docker Compose
 
 Requires Docker Engine with Compose v2 on Linux. From this checkout:
 
 ```sh
-sudo ./scripts/prepare-compose.sh  # synthetic config + empty SMTP secret, mode 0600
+sudo ./scripts/prepare-compose.sh  # synthetic config + empty SMTP/search secrets, mode 0600
 # Edit with sudoedit secrets/config.yaml; keep dry_run: true initially.
 docker compose up -d
 docker compose exec eraser /eraser auth-token
@@ -37,11 +48,11 @@ configuration deliberately approves no recipients.
 
 The bootstrap script needs root only to set ownership on **host secret files**.
 The application always runs as UID/GID 65532. Compose file secrets preserve
-host ownership, so keep `secrets/config.yaml` and `secrets/smtp-password` owned
+host ownership, so keep `secrets/config.yaml`, `secrets/smtp-password` and `secrets/discovery-api-key` owned
 by 65532 with mode 0600. Never commit them. An empty SMTP secret is acceptable
 in preview mode. For a local build: `docker compose build --pull && docker compose up -d`.
 
-`eraser-data` persists SQLite history and the bootstrap authentication token.
+`eraser-data` persists SQLite delivery history, sensitive discovery evidence and the bootstrap authentication token.
 The root filesystem is read-only, all capabilities are dropped, privilege
 escalation is disabled, and resource limits apply. Only loopback port 8080 is
 published. Remote access should use an SSH tunnel or a trusted HTTPS reverse
@@ -79,6 +90,7 @@ example, then create the Secret **without putting values in shell arguments**:
 kubectl -n eraser create secret generic eraser-secrets \
   --from-file=config.yaml=./secrets/config.yaml \
   --from-file=smtp_password=./secrets/smtp-password \
+  --from-file=discovery_api_key=./secrets/discovery-api-key \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n eraser rollout restart deployment/eraser
 ```
@@ -104,6 +116,82 @@ Do not allow arbitrary HTTP(S) egress or inbound access from all namespaces.
 See [k8s-examples](docs/k8s-examples.md). A TLS proxy requires an ingress rule
 limited to that proxy and `ERASER_PUBLIC_ORIGIN=https://your-exact-host`.
 The proxy must preserve Host and suppress authentication-header logging.
+
+## Actively search for your data
+
+Searches query the **Brave Search API index**, restricted to the selected broker's
+website domain. The app never fetches result pages, submits broker forms, solves
+CAPTCHAs, or queries private broker databases. Coverage is therefore limited to
+indexed public pages (up to 20 candidates per broker/search). Zero results means
+**not found in this search**, not “your data is absent.” A domain match or snippet
+is not proof of identity or possession. There is no automatic removal after a hit.
+
+1. Obtain a [Brave Search API key](https://api-dashboard.search.brave.com/documentation/guides/authentication)
+   using your own provider account. Put it in `secrets/discovery-api-key` using a
+   private editor, mode 0600/owner 65532 for Compose. Do not put it in YAML, image
+   build arguments, an environment variable, shell history or Git.
+2. In your private config, populate only the profile fields you need and set:
+
+   ```yaml
+   discovery:
+     api_key_file: /run/secrets/discovery_api_key
+     fields: [name, city, state]
+   ```
+
+   Every selected field must be populated. Supported fields are `name`, `city`,
+   `state`, `email`, `phone`; at least one of name/email/phone is required. DOB and
+   street address cannot be searched. Start with name and broad location. Search
+   fields are independent of removal-email disclosure fields.
+3. Set `ERASER_ENABLE_DISCOVERY: "true"` in the deployment and restart/recreate.
+   Keep `options.dry_run: true` and `ERASER_ENABLE_SEND: "false"` while discovering.
+   Mail dry-run does not disable an explicitly approved search; `discover
+   --dry-run` and search previews never contact the provider.
+4. Choose a broker's **Preview search**, inspect the exact query and domain,
+   acknowledge disclosure to Brave, then run that search. Each approval is
+   single-use and expires after five minutes. One broker is searched at a time;
+   there is no background or blanket scan and no automatic retries.
+5. Review each candidate's title, snippet and URL. Confirm only matches that you
+   believe identify you; reject unrelated matches. Then separately approve the
+   recipient and minimized removal message as described below. Confirmation alone
+   never sends mail. Delete evidence or reject a match to revoke its confirmation.
+
+Brave receives the exact query, including selected personal identifiers, and the
+client's public IP/API account identity. Provider retention and permitted result
+storage depend on your plan; verify them before using real data. Zero-retention
+is **not assumed**. See the [API reference](https://api-dashboard.search.brave.com/api-reference/web/search/post)
+and [provider privacy offering](https://brave.com/blog/search-api-zero-data-retention/).
+The client uses verified HTTPS, a fixed endpoint, no environment proxy or
+redirects, bounded responses/timeouts and no broker/result URL fetching. API
+errors are redacted. Searches can incur provider charges.
+
+For Kubernetes, mount `discovery_api_key` in the existing Secret (command above)
+and permit DNS plus narrowly scoped HTTPS egress to `api.search.brave.com`; the
+default deny policy intentionally blocks active searches. Use your CNI's FQDN
+policy or a maintained provider IP policy; see [network examples](docs/k8s-examples.md).
+
+CLI, using only IDs/digests in arguments (query values come from the private config):
+
+```sh
+eraser discover --broker example-broker-id --dry-run
+eraser discover --broker example-broker-id --approve-sha256 <reviewed-search-digest>
+eraser matches
+eraser review-match --id <candidate-id> --decision confirmed
+# Separately preview/approve one removal; all existing SMTP gates still apply.
+eraser send --broker example-broker-id --dry-run
+eraser review-match --id <candidate-id> --decision rejected
+eraser forget-discovery --broker example-broker-id
+```
+
+Search previews and `matches` output contain PII: do not pipe them into shared
+logs. SQLite stores candidate URLs, titles, snippets, decisions and a profile/query
+fingerprint (not raw profile/query snapshots or API keys). It is private but
+**unencrypted**; use encrypted storage/backups. Evidence authorizes removal for
+at most 30 days, bound to the full profile, broker ID/email/domain and query.
+Profile/catalog/query changes invalidate it. A successful rescan replaces that
+broker's evidence and requires fresh review; failed searches leave prior evidence
+unchanged. Expired evidence is hidden and cannot authorize sending; it is deleted
+on startup or the next approved search. Explicit deletion is also available.
+Backups/snapshots may retain deleted evidence until separately expired.
 
 ## Approve a recipient and minimize disclosure
 
@@ -133,7 +221,7 @@ fields; the sender address remains visible in SMTP. Optional fields are `name`,
 `date_of_birth`. DOB, address, phone, and profile email are never included merely
 because they exist in your profile. Do not approve more than the broker needs.
 
-Web: click Preview, inspect the exact recipient and complete body, then confirm
+Web: after confirming a discovery match, click Preview removal, inspect the exact recipient and complete body, then confirm
 one request. The approval expires after five minutes, is single-use, and is
 invalidated if the rendered request changes. There is no send-all endpoint.
 
@@ -156,7 +244,7 @@ Certificate/hostname verification is mandatory, TLS is at least 1.2, and STARTTL
 must be advertised and succeed before AUTH/MAIL. There is no plaintext fallback
 or certificate-validation bypass. `password_file` points to the mounted secret;
 SMTP secrets are never echoed to the UI, serialized in YAML, or recorded in
-SQLite. Use a dedicated low-privilege app password/mail account. API providers
+SQLite. Use a dedicated low-privilege app password/mail account. Email API providers
 and inbox passwords are not supported in this fork.
 
 Then use the web confirmation or pass the CLI's reviewed `--approve-sha256`

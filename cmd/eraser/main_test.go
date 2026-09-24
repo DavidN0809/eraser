@@ -42,3 +42,30 @@ options:
 		t.Fatal(out.String())
 	}
 }
+
+func TestDiscoveryCLIPreviewNeverContactsProvider(t *testing.T) {
+	d := t.TempDir()
+	t.Setenv("ERASER_DATA_DIR", d)
+	t.Setenv("ERASER_ENABLE_DISCOVERY", "true")
+	t.Setenv("ERASER_ENABLE_SEND", "true")
+	cfg := filepath.Join(d, "config.yaml")
+	catalog := filepath.Join(d, "brokers.yaml")
+	if err := os.WriteFile(cfg, []byte("profile:\n  first_name: Synthetic\n  last_name: Person\n  email: NEVER-DISCLOSE@example.invalid\ndiscovery:\n  fields: [name]\n  api_key_file: /missing/secret\noptions:\n  dry_run: false\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(catalog, []byte("brokers:\n  - id: fixture\n    name: Fixture\n    website: https://broker.example.invalid\n    email: broker@example.invalid\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"discover", "--broker", "fixture"}, {"discover", "--broker", "fixture", "--dry-run", "--approve-sha256", "bad"}} {
+		c := command()
+		var out bytes.Buffer
+		c.SetOut(&out)
+		c.SetArgs(append([]string{"--config", cfg, "--brokers", catalog}, args...))
+		if err := c.Execute(); err != nil {
+			t.Fatal("preview tried loading transport secret", err)
+		}
+		if !strings.Contains(out.String(), "SEARCH PREVIEW ONLY") || strings.Contains(out.String(), "NEVER-DISCLOSE") {
+			t.Fatal("query leaked unselected fields")
+		}
+	}
+}

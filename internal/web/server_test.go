@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/eraser-privacy/eraser/internal/broker"
 	"github.com/eraser-privacy/eraser/internal/config"
+	"github.com/eraser-privacy/eraser/internal/discovery"
 	"github.com/eraser-privacy/eraser/internal/history"
 	"github.com/eraser-privacy/eraser/internal/service"
 	templates "github.com/eraser-privacy/eraser/internal/template"
@@ -143,4 +144,74 @@ func TestNoPendingJobResume(t *testing.T) {
 		t.Fatal("restart sent mail")
 	}
 	_ = s.Shutdown(context.Background())
+}
+
+func TestDiscoveryRequiresAuthCSRFAndSingleUseApproval(t *testing.T) {
+	s := fixture(t)
+	s.Service.Config.Discovery.Fields = []string{"name"}
+	s.Service.Brokers.Brokers[0].Website = "https://broker.example.invalid"
+	t.Setenv("ERASER_ENABLE_DISCOVERY", "false")
+	for _, path := range []string{"/discovery/preview", "/discovery/search", "/discovery/review", "/discovery/forget"} {
+		if w := request(s, "POST", path, nil, false); w.Code != 401 {
+			t.Fatal("unauthenticated discovery", path, w.Code)
+		}
+		if w := request(s, "POST", path, nil, true); w.Code != 403 {
+			t.Fatal("missing CSRF accepted", path, w.Code)
+		}
+	}
+	w := request(s, "POST", "/discovery/preview", url.Values{"csrf": {s.csrf}, "broker": {"test"}}, true)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Synthetic Person") || strings.Contains(w.Body.String(), "SENSITIVE") {
+		t.Fatal("bad query preview", w.Body.String())
+	}
+	for nonce := range s.searchApprovals {
+		form := url.Values{"csrf": {s.csrf}, "approval": {nonce}, "confirm": {"yes"}}
+		if w = request(s, "POST", "/discovery/search", form, true); w.Code != 400 {
+			t.Fatal("disabled discovery accepted", w.Code)
+		}
+		if w = request(s, "POST", "/discovery/search", form, true); w.Code != 409 {
+			t.Fatal("search approval replay", w.Code)
+		}
+	}
+	rows, err := s.Service.History.Recent(10)
+	if err != nil || len(rows) != 0 {
+		t.Fatal("discovery attempted email")
+	}
+}
+
+func TestDiscoveryEvidenceEscapedAndReviewDoesNotSend(t *testing.T) {
+	s := fixture(t)
+	s.Service.Config.Discovery.Fields = []string{"name"}
+	s.Service.Brokers.Brokers[0].Website = "https://broker.example.invalid"
+	plan, err := s.Service.DiscoveryPlan("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Service.History.SaveScan(plan, []discovery.Match{{URL: "https://broker.example.invalid/person", Title: "<script>attack()</script>", Snippet: "<img src=x onerror=attack()>"}}); err != nil {
+		t.Fatal(err)
+	}
+	w := request(s, "GET", "/", nil, true)
+	if w.Code != 200 || strings.Contains(w.Body.String(), "<script>") || strings.Contains(w.Body.String(), "<img ") || !strings.Contains(w.Body.String(), "&lt;script&gt;") {
+		t.Fatal("unescaped evidence", w.Body.String())
+	}
+	matches, err := s.Service.History.Matches()
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{"csrf": {s.csrf}, "match": {matches[0].ID}, "decision": {"confirmed"}}
+	if w = request(s, "POST", "/discovery/review", form, true); w.Code != 303 {
+		t.Fatal(w.Body.String())
+	}
+	if ok, err := s.Service.History.HasConfirmed(plan); err != nil || !ok {
+		t.Fatal("review failed", err)
+	}
+	rows, err := s.Service.History.Recent(10)
+	if err != nil || len(rows) != 0 {
+		t.Fatal("review sent mail")
+	}
+	if w = request(s, "POST", "/discovery/forget", url.Values{"csrf": {s.csrf}, "broker": {"test"}}, true); w.Code != 303 {
+		t.Fatal(w.Body.String())
+	}
+	if ok, _ := s.Service.History.HasConfirmed(plan); ok {
+		t.Fatal("forget retained approval")
+	}
 }

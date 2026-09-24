@@ -13,12 +13,14 @@ services:
       ERASER_DATA_DIR: /data
       ERASER_CONFIG_FILE: /run/secrets/eraser_config
       ERASER_ENABLE_SEND: "false"
+      ERASER_ENABLE_DISCOVERY: "false"
       ERASER_PUBLIC_ORIGIN: http://localhost:8080
     volumes:
       - eraser-data:/data
     secrets:
       - eraser_config
       - smtp_password
+      - discovery_api_key
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=65532,gid=65532
     pids_limit: 64
@@ -34,5 +36,7 @@ secrets:
     file: ./secrets/config.yaml
   smtp_password:
     file: ./secrets/smtp-password
+  discovery_api_key:
+    file: ./secrets/discovery-api-key
 volumes:
   eraser-data:

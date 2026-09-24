@@ -32,6 +32,7 @@ spec:
             - {name: ERASER_DATA_DIR, value: /data}
             - {name: ERASER_CONFIG_FILE, value: /run/secrets/config.yaml}
             - {name: ERASER_ENABLE_SEND, value: "false"}
+            - {name: ERASER_ENABLE_DISCOVERY, value: "false"}
             - {name: ERASER_PUBLIC_ORIGIN, value: "http://localhost:8080"}
           securityContext:
             allowPrivilegeEscalation: false

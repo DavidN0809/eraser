@@ -12,10 +12,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type DiscoveryConfig struct {
+	APIKeyFile string   `yaml:"api_key_file"`
+	Fields     []string `yaml:"fields"`
+}
+
 type Config struct {
-	Profile Profile     `yaml:"profile"`
-	Email   EmailConfig `yaml:"email"`
-	Options Options     `yaml:"options"`
+	Discovery DiscoveryConfig `yaml:"discovery"`
+	Profile   Profile         `yaml:"profile"`
+	Email     EmailConfig     `yaml:"email"`
+	Options   Options         `yaml:"options"`
 }
 type Profile struct {
 	FirstName   string `yaml:"first_name"`
@@ -119,6 +125,13 @@ func Load(path string) (*Config, error) {
 			default:
 				return nil, fmt.Errorf("unknown disclosure field")
 			}
+		}
+	}
+	for _, field := range cfg.Discovery.Fields {
+		switch field {
+		case "name", "city", "state", "email", "phone":
+		default:
+			return nil, fmt.Errorf("unsupported discovery field")
 		}
 	}
 	return &cfg, nil

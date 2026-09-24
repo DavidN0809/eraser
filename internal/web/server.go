@@ -26,13 +26,14 @@ type approval struct {
 	Expires time.Time
 }
 type Server struct {
-	Service   *service.Service
-	token     string
-	origin    string
-	csrf      string
-	mu        sync.Mutex
-	approvals map[string]approval
-	server    *http.Server
+	Service         *service.Service
+	token           string
+	origin          string
+	csrf            string
+	mu              sync.Mutex
+	approvals       map[string]approval
+	searchApprovals map[string]searchApproval
+	server          *http.Server
 }
 
 func TokenPath() string {
@@ -85,7 +86,7 @@ func New(svc *service.Service) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{Service: svc, token: token, origin: origin, csrf: csrf, approvals: map[string]approval{}}, nil
+	return &Server{Service: svc, token: token, origin: origin, csrf: csrf, approvals: map[string]approval{}, searchApprovals: map[string]searchApproval{}}, nil
 }
 func randomToken() (string, error) {
 	b := make([]byte, 32)
@@ -139,6 +140,14 @@ func (s *Server) Handler() http.Handler {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/":
 			s.dashboard(w, r)
+		case r.Method == http.MethodPost && r.URL.Path == "/discovery/preview":
+			s.discoveryPreview(w, r)
+		case r.Method == http.MethodPost && r.URL.Path == "/discovery/search":
+			s.discover(w, r)
+		case r.Method == http.MethodPost && r.URL.Path == "/discovery/review":
+			s.reviewMatch(w, r)
+		case r.Method == http.MethodPost && r.URL.Path == "/discovery/forget":
+			s.forgetDiscovery(w, r)
 		case r.Method == http.MethodPost && r.URL.Path == "/preview":
 			s.preview(w, r)
 		case r.Method == http.MethodPost && r.URL.Path == "/send":
@@ -168,7 +177,17 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cannot read history", http.StatusInternalServerError)
 		return
 	}
-	data := map[string]any{"CSRF": s.csrf, "Brokers": s.Service.Brokers.Brokers, "History": records, "PreviewOnly": s.Service.Config.Options.DryRun || os.Getenv("ERASER_ENABLE_SEND") != "true"}
+	matches, err := s.Service.History.Matches()
+	if err != nil {
+		http.Error(w, "cannot read discovery", 500)
+		return
+	}
+	scans, err := s.Service.History.Scans()
+	if err != nil {
+		http.Error(w, "cannot read scans", 500)
+		return
+	}
+	data := map[string]any{"Matches": matches, "Scans": scans, "Dashboard": true, "CSRF": s.csrf, "Brokers": s.Service.Brokers.Brokers, "History": records, "PreviewOnly": s.Service.Config.Options.DryRun || os.Getenv("ERASER_ENABLE_SEND") != "true"}
 	s.render(w, data)
 }
 func (s *Server) preview(w http.ResponseWriter, r *http.Request) {
@@ -235,4 +254,9 @@ func (s *Server) render(w http.ResponseWriter, data any) {
 	}
 }
 
-var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Eraser</title><style>body{font:17px system-ui;max-width:980px;margin:3rem auto;padding:0 1rem;color:#172c27;background:#f5faf8}a{color:#17664f}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:.6rem;border-bottom:1px solid #ccd9d3}button{padding:.6rem;background:#17664f;color:white;border:0;border-radius:.3rem}pre{white-space:pre-wrap;background:white;padding:1rem;border:1px solid #ccd9d3}.notice{padding:1rem;background:#e4efe8}</style><h1><a href="/">Eraser</a></h1><p class="notice">{{if .PreviewOnly}}Preview mode — email delivery is disabled.{{else}}Live delivery enabled. Every send requires a fresh preview and confirmation.{{end}}</p><p>Only explicitly approved broker IDs and email addresses can receive a request. Review whether a broker already holds your data. Even a minimal email reveals the sender address and may create a new record.</p>{{if .Message}}<h2>Review this exact request</h2><p><b>From:</b> {{.Message.From}}<br><b>To:</b> {{.Message.To}}<br><b>Subject:</b> {{.Message.Subject}}</p><pre>{{.Message.Body}}</pre>{{if not .PreviewOnly}}<form method="post" action="/send"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="approval" value="{{.Approval}}"><label><input type="checkbox" name="confirm" value="yes" required> I approve this recipient and every field shown above.</label><p><button>Send this request</button></p></form>{{end}}{{else}}<h2>Broker catalog</h2><p>The catalog is a list of unverified leads, not proof that a broker holds your information. Approve exact recipients and disclosure fields in your private configuration, then restart to load changes.</p><table><tr><th>Broker</th><th>Recipient</th><th>Action</th></tr>{{range .Brokers}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td><form method="post" action="/preview"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="broker" value="{{.ID}}"><button>Preview</button></form></td></tr>{{end}}</table><h2>Delivery history</h2><p>An attempted record without a final result means delivery is uncertain. Check your mail provider before retrying.</p><table><tr><th>Time</th><th>Broker</th><th>Result</th></tr>{{range .History}}<tr><td>{{.SentAt}}</td><td>{{.BrokerID}}</td><td>{{.Status}}</td></tr>{{else}}<tr><td>No delivery attempts.</td></tr>{{end}}</table>{{end}}</html>`))
+var page = template.Must(template.New("page").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Eraser</title><style>body{font:17px system-ui;max-width:980px;margin:3rem auto;padding:0 1rem;color:#172c27;background:#f5faf8}a{color:#17664f}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:.6rem;border-bottom:1px solid #ccd9d3}button{padding:.6rem;background:#17664f;color:white;border:0;border-radius:.3rem}pre{white-space:pre-wrap;background:white;padding:1rem;border:1px solid #ccd9d3}.notice{padding:1rem;background:#e4efe8}</style><h1><a href="/">Eraser</a></h1><p class="notice">{{if .PreviewOnly}}Preview mode — email delivery is disabled.{{else}}Live delivery enabled. Every send requires a fresh preview and confirmation.{{end}}</p><p>Removal requires a discovered candidate that you have confirmed belongs to you. Only explicitly approved broker IDs and email addresses can receive a request. Review whether a broker already holds your data. Even a minimal email reveals the sender address and may create a new record.</p>{{if .Notice}}<p class="notice">{{.Notice}}</p>{{end}}
+{{if .SearchPlan}}<h2>Review this active search</h2><p>Provider: Brave Search API. This sends the exact query below to Brave. It does not contact the broker or send mail. Search terms and results may be sensitive; provider retention depends on your plan.</p><pre>{{.SearchPlan.Query}}</pre><p>Broker: {{.SearchPlan.BrokerID}}. Results may be incorrect, stale or incomplete. Existing evidence for this broker is replaced after a successful search.</p>{{if .DiscoveryEnabled}}<form method="post" action="/discovery/search"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="approval" value="{{.SearchApproval}}"><label><input type="checkbox" name="confirm" value="yes" required> I approve disclosing these search terms to Brave.</label><p><button>Run this search</button></p></form>{{else}}<p>Active discovery is disabled. Configure a search API secret and ERASER_ENABLE_DISCOVERY=true to enable it.</p>{{end}}{{end}}
+{{if .Message}}<h2>Review this exact request</h2><p><b>From:</b> {{.Message.From}}<br><b>To:</b> {{.Message.To}}<br><b>Subject:</b> {{.Message.Subject}}</p><pre>{{.Message.Body}}</pre>{{if not .PreviewOnly}}<form method="post" action="/send"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="approval" value="{{.Approval}}"><label><input type="checkbox" name="confirm" value="yes" required> I approve this recipient and every field shown above.</label><p><button>Send this request</button></p></form>{{end}}{{end}}{{if .Dashboard}}<h2>Discovery</h2><p>Start with a search preview for a selected broker below. Confirm only candidates you have reviewed and believe describe you. Search snippets are untrusted evidence, not proof. Result URLs are shown as text; opening one yourself contacts that site. Evidence expires after 30 days. Changing your profile, search fields or broker target requires a fresh search.</p>
+{{range .Matches}}<article><h3>{{.BrokerID}} — {{.Status}}</h3><p>{{.Title}}</p><pre>{{.URL}}</pre><p>{{.Snippet}}</p><form method="post" action="/discovery/review"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="match" value="{{.ID}}"><button name="decision" value="confirmed">I reviewed this match: it is me</button> <button name="decision" value="rejected">Not me / revoke confirmation</button></form></article>{{else}}<p>No current candidates. Search failures or missing results do not establish that your data is absent.</p>{{end}}
+<table><tr><th>Broker</th><th>Last search (UTC)</th><th>Candidates</th><th>Evidence</th></tr>{{range .Scans}}<tr><td>{{.BrokerID}}</td><td>{{.CreatedAt}}</td><td>{{.Candidates}}</td><td><form method="post" action="/discovery/forget"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="broker" value="{{.BrokerID}}"><button>Delete evidence and revoke confirmation</button></form></td></tr>{{end}}</table>
+<h2>Broker catalog</h2><p>The catalog is a list of unverified leads, not proof that a broker holds your information. Approve exact recipients and disclosure fields in your private configuration, then restart to load changes.</p><table><tr><th>Broker</th><th>Recipient</th><th>Action</th></tr>{{range .Brokers}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td><form method="post" action="/discovery/preview"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="broker" value="{{.ID}}"><button>Preview search</button></form><form method="post" action="/preview"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="broker" value="{{.ID}}"><button>Preview removal</button></form></td></tr>{{end}}</table><h2>Delivery history</h2><p>An attempted record without a final result means delivery is uncertain. Check your mail provider before retrying.</p><table><tr><th>Time</th><th>Broker</th><th>Result</th></tr>{{range .History}}<tr><td>{{.SentAt}}</td><td>{{.BrokerID}}</td><td>{{.Status}}</td></tr>{{else}}<tr><td>No delivery attempts.</td></tr>{{end}}</table>{{end}}</html>`))
