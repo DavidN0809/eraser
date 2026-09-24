@@ -100,7 +100,7 @@ func newClient() *http.Client {
 }
 
 func search(ctx context.Context, client *http.Client, key string, plan Plan) ([]Match, error) {
-	payload, err := json.Marshal(map[string]any{"q": plan.Query, "count": 20, "result_filter": "web", "text_decorations": false, "spellcheck": false})
+	payload, err := json.Marshal(map[string]any{"q": plan.Query, "count": 20, "result_filter": []string{"web"}, "text_decorations": false, "spellcheck": false})
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode search")
 	}

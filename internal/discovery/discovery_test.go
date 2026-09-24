@@ -91,6 +91,10 @@ func TestSearchLocalTLSFilteringAndNoBrokerFetch(t *testing.T) {
 		if err := json.Unmarshal(body, &query); err != nil {
 			t.Error(err)
 		}
+		filters, ok := query["result_filter"].([]any)
+		if !ok || len(filters) != 1 || filters[0] != "web" {
+			t.Error("POST result_filter must use the documented JSON array schema")
+		}
 		if query["q"] != plan.Query {
 			t.Error("query changed")
 		}
