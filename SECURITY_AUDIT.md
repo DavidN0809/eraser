@@ -94,6 +94,7 @@ report is success, not a skipped run.
 | Trivy v0.74.0, built image | No High/Critical vulnerability or secret findings in the built runtime image. Scans inspect the Go executable even though scratch has no OS packages. |
 | Trivy config | Dockerfile and restrictive manifests pass; one Medium KSV-0125 registry-policy match: custom `git.nicholstech.org` is outside Trivy's generic trusted-registry list. This is the intended authoritative homelab registry, not an unexpected source. No blanket suppression added. |
 | Actionlint | Workflow validation passes. |
+| Kubernetes runtime | PVC, restricted pod startup, absent/present Secret, authentication, health and restart persistence pass in a disposable namespace. See [deployment evidence](docs/scan-results/deployment-validation.md). |
 
 Upstream reachable advisory IDs reported by govulncheck:
 `GO-2026-5030`, `GO-2026-5029`, `GO-2026-5028`, `GO-2026-5027`,
@@ -138,8 +139,9 @@ upstream merges.
   retention policy. Secure deletion on copy-on-write/SSD storage is not assured.
 - **Residual supply-chain risk:** scans cannot detect all unknown flaws or a
   malicious upstream change. Review every update and maintain pinned deployment
-  digests. The workflow's package-only Gitea credential is an encrypted GitHub
-  Actions secret; rotate/revoke it if CI is compromised. The current upstream
+  digests. The workflow's package-only Gitea credential belongs to a dedicated non-admin
+  eraser-builder account and is stored as an encrypted GitHub Actions secret;
+  rotate/revoke it if CI is compromised. The current upstream
   revision contains no LICENSE file; licensing is unresolved.
 
 No absolute claim that the program is vulnerability-free is made. No real

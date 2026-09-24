@@ -3,94 +3,96 @@
   "Trivy": {
     "Version": "0.74.0"
   },
-  "ReportID": "01a0d419-f443-72b4-82b9-263f8792fc82",
-  "CreatedAt": "2026-09-24T11:47:45.859180444-04:00",
-  "ArtifactID": "sha256:12afd00a469b0d187ddaeeb2d0b9af310e87f3808d87c9bdd2609c046f5b56ab",
-  "ArtifactName": "/tmp/eraser-image.tar",
+  "ReportID": "01a0d422-6ca9-7dfe-bb62-0aaa84da8a23",
+  "CreatedAt": "2026-09-24T11:57:00.969920451-04:00",
+  "ArtifactID": "sha256:98535961500eb7fb4a6ec3b7a19092c5a16fd80d153e80c8b08e78b2d5f8c236",
+  "ArtifactName": "git.nicholstech.org/nichols-homelab/eraser:validation-641b7ed",
   "ArtifactType": "container_image",
   "Metadata": {
     "Size": 15192064,
-    "ImageID": "sha256:61589b72e5338b2df6570e970aa9213aac649015ef0cc4541a991a01fc946000",
+    "ImageID": "sha256:954f8065ff8e076359d2ac181e61bf978049890bbf3c8c0a5c7691197f03ee79",
     "DiffIDs": [
-      "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+      "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
     ],
     "RepoTags": [
-      "docker.io/library/eraser:hardening",
-      "localhost/eraser:hardening"
+      "git.nicholstech.org/nichols-homelab/eraser:validation-641b7ed"
     ],
-    "Reference": "docker.io/library/eraser:hardening",
+    "RepoDigests": [
+      "git.nicholstech.org/nichols-homelab/eraser@sha256:44cf8f1c7692e97e0a946b4601ceb0d3c031ffbbe186135c01931108ac0fae26"
+    ],
+    "Reference": "git.nicholstech.org/nichols-homelab/eraser:validation-641b7ed",
     "ImageConfig": {
       "architecture": "amd64",
-      "container": "6ccca9e1a270208f20afb31ebe896ac9a5ebcb1344735a279a878ef248893404",
-      "created": "2026-09-24T15:47:11.605798161Z",
+      "container": "603767234bf8dee47071695136e330a0560abb664dd1b7ad2442e6f0cb9dcbfc",
+      "created": "2026-09-24T15:55:45.785465324Z",
       "history": [
         {
-          "created": "2026-09-24T15:47:10.500246317Z",
+          "created": "2026-09-24T15:55:44.322792778Z",
           "created_by": "/bin/sh -c #(nop) LABEL org.opencontainers.image.title=\"Eraser hardened\"       org.opencontainers.image.source=\"https://git.nicholstech.org/Nichols-HomeLab/eraser\"",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:10.644189803Z",
+          "created": "2026-09-24T15:55:44.561150461Z",
           "created_by": "/bin/sh -c #(nop) COPY file:1fb2b1a1d004bdea9bd4ba93862a8afe238f6cf81436097d7894ef6328867b49 in /etc/ssl/certs/ca-certificates.crt ",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:10.789058251Z",
+          "created": "2026-09-24T15:55:44.787201146Z",
           "created_by": "/bin/sh -c #(nop) COPY file:cc865d5a23b7f63f7e4698173139916fd0affb8ff1f1c8fca5335b087f702275 in /etc/passwd ",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:10.929333977Z",
+          "created": "2026-09-24T15:55:45.034610886Z",
           "created_by": "/bin/sh -c #(nop) COPY file:3dbd506bad6f6156f7bc86a097f8b7ea75437c06760d5f729f537d64ad650529 in /etc/group ",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.088701129Z",
-          "created_by": "/bin/sh -c #(nop) COPY file:3845232eeeb8957228a9090c5f4fa48eba4c1563542cdcdb3fb6690b05710bcc in /eraser ",
+          "created": "2026-09-24T15:55:45.30344706Z",
+          "created_by": "/bin/sh -c #(nop) COPY file:71aac81da9fd8f17e352a04a4ef4c3199dff2e8e41a2bea78126c5e8ba357248 in /eraser ",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.225395098Z",
+          "created": "2026-09-24T15:55:45.452779889Z",
           "created_by": "/bin/sh -c #(nop) COPY file:4b4c5d829cee84b9e2a353d9d47ec563c6867407180e3df04573abac848f24e5 in /app/data/brokers.yaml ",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.38044661Z",
+          "created": "2026-09-24T15:55:45.598216311Z",
           "created_by": "/bin/sh -c #(nop) COPY dir:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef in /data ",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.436991424Z",
+          "created": "2026-09-24T15:55:45.618856938Z",
           "created_by": "/bin/sh -c #(nop) USER 65532:65532",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.474724302Z",
+          "created": "2026-09-24T15:55:45.641909509Z",
           "created_by": "/bin/sh -c #(nop) WORKDIR /app",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.520037564Z",
+          "created": "2026-09-24T15:55:45.682926962Z",
           "created_by": "/bin/sh -c #(nop) ENV ERASER_DATA_DIR=/data ERASER_BROKERS_FILE=/app/data/brokers.yaml ERASER_ENABLE_SEND=false",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.543414953Z",
+          "created": "2026-09-24T15:55:45.707932958Z",
           "created_by": "/bin/sh -c #(nop) EXPOSE 8080",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.561432382Z",
+          "created": "2026-09-24T15:55:45.736615193Z",
           "created_by": "/bin/sh -c #(nop) HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD [\"/eraser\", \"healthcheck\"]",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.58135277Z",
+          "created": "2026-09-24T15:55:45.759333963Z",
           "created_by": "/bin/sh -c #(nop) ENTRYPOINT [\"/eraser\"]",
           "empty_layer": true
         },
         {
-          "created": "2026-09-24T15:47:11.640393317Z",
+          "created": "2026-09-24T15:55:45.821873628Z",
           "created_by": "/bin/sh -c #(nop) CMD [\"serve\", \"--listen\", \"0.0.0.0:8080\"]"
         }
       ],
@@ -98,7 +100,7 @@
       "rootfs": {
         "type": "layers",
         "diff_ids": [
-          "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
         ]
       },
       "config": {
@@ -126,7 +128,7 @@
           "ERASER_BROKERS_FILE=/app/data/brokers.yaml",
           "ERASER_ENABLE_SEND=false"
         ],
-        "Hostname": "4234796aaaed",
+        "Hostname": "245a963c3270",
         "Labels": {
           "io.buildah.version": "1.39.3",
           "org.opencontainers.image.source": "https://git.nicholstech.org/Nichols-HomeLab/eraser",
@@ -142,7 +144,8 @@
     "Layers": [
       {
         "Size": 15192064,
-        "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+        "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+        "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
       }
     ]
   },
@@ -175,7 +178,8 @@
             "stdlib@v1.27.1"
           ],
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -189,7 +193,8 @@
           "Version": "v1.27.1",
           "Relationship": "direct",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -202,7 +207,8 @@
           },
           "Version": "v1.0.1",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -215,7 +221,8 @@
           },
           "Version": "v1.6.0",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -228,7 +235,8 @@
           },
           "Version": "v0.0.0-20230129092748-24d4a6f8daec",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -241,7 +249,8 @@
           },
           "Version": "v1.10.2",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -254,7 +263,8 @@
           },
           "Version": "v1.0.9",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -267,7 +277,8 @@
           },
           "Version": "v0.47.0",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -280,7 +291,8 @@
           },
           "Version": "v3.0.1",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -293,7 +305,8 @@
           },
           "Version": "v1.75.7",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -306,7 +319,8 @@
           },
           "Version": "v1.7.1",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -319,7 +333,8 @@
           },
           "Version": "v1.12.1",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         },
@@ -332,7 +347,8 @@
           },
           "Version": "v1.59.0",
           "Layer": {
-            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+            "Digest": "sha256:cd7cec8c71e156586600c74181da4b26484a96178676e66eaf6b61f8a312bfbb",
+            "DiffID": "sha256:8b2981ce52674259489dfa10d6ac409424881e9e1ef4f1bb6bca5faa4b7b4351"
           },
           "AnalyzedBy": "gobinary"
         }

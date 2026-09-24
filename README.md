@@ -24,7 +24,7 @@ Requires Docker Engine with Compose v2 on Linux. From this checkout:
 
 ```sh
 sudo ./scripts/prepare-compose.sh  # synthetic config + empty SMTP secret, mode 0600
-# Edit secrets/config.yaml locally; keep dry_run: true initially.
+# Edit with sudoedit secrets/config.yaml; keep dry_run: true initially.
 docker compose up -d
 docker compose exec eraser /eraser auth-token
 ```

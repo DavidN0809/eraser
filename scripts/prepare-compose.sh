@@ -10,6 +10,10 @@ chmod 600 secrets/config.yaml secrets/smtp-password
 # Compose file-backed secrets retain host ownership; the process is UID 65532.
 if [ "$(id -u)" = 0 ]; then
   chown 65532:65532 secrets/config.yaml secrets/smtp-password
+  # Let the invoking Compose client traverse the directory without exposing file contents.
+  if [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
+    chown "${SUDO_UID}:${SUDO_GID}" secrets
+  fi
 else
   echo 'Run: sudo chown 65532:65532 secrets/config.yaml secrets/smtp-password'
 fi
