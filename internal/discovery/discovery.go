@@ -90,11 +90,15 @@ func Search(ctx context.Context, cfg *config.Config, plan Plan) ([]Match, error)
 	if err != nil || strings.TrimSpace(key) == "" {
 		return nil, fmt.Errorf("discovery API key secret is missing or invalid")
 	}
-	transport := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext, TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 10 * time.Second, DisableKeepAlives: true}
-	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := newClient()
+	defer client.CloseIdleConnections()
 	return search(ctx, client, key, plan)
 }
+func newClient() *http.Client {
+	transport := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext, TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 10 * time.Second, DisableKeepAlives: true}
+	return &http.Client{Transport: transport, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}
+
 func search(ctx context.Context, client *http.Client, key string, plan Plan) ([]Match, error) {
 	payload, err := json.Marshal(map[string]any{"q": plan.Query, "count": 20, "result_filter": "web", "text_decorations": false, "spellcheck": false})
 	if err != nil {

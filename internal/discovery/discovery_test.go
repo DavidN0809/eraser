@@ -97,9 +97,7 @@ func TestSearchLocalTLSFilteringAndNoBrokerFetch(t *testing.T) {
 		_, _ = io.WriteString(w, `{"web":{"results":[{"url":"https://broker.example.invalid/profile/1","title":"<script>bad()</script>","description":"Synthetic Person"},{"url":"https://broker.example.invalid.evil.invalid/a"},{"url":"http://broker.example.invalid/a"},{"url":"https://user@broker.example.invalid/a"},{"url":"https://127.0.0.1/a"},{"url":"https://sub.broker.example.invalid/profile/2"},{"url":"https://broker.example.invalid/profile/1#duplicate"}]}}`)
 	}))
 	defer server.Close()
-	client := server.Client()
-	client.Transport = rewriteTransport{server.URL, client.Transport, t}
-	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	client := fixtureClient(t, server)
 	matches, err := search(context.Background(), client, "synthetic-key", plan)
 	if err != nil || len(matches) != 2 || calls != 1 {
 		t.Fatalf("unexpected results/calls %v %d %d", err, len(matches), calls)
@@ -126,9 +124,7 @@ func TestProviderFailuresBoundedAndRedacted(t *testing.T) {
 				_, _ = io.WriteString(w, tc.body)
 			}))
 			defer server.Close()
-			client := server.Client()
-			client.Transport = rewriteTransport{server.URL, client.Transport, t}
-			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+			client := fixtureClient(t, server)
 			_, err := search(context.Background(), client, "synthetic-key", plan)
 			if err == nil || strings.Contains(err.Error(), "SECRET") || calls != 1 {
 				t.Fatal("failure not contained", err, calls)
@@ -149,5 +145,32 @@ func TestSearchDisabledOrMissingSecretNeverDials(t *testing.T) {
 	}
 	if _, err := Search(context.Background(), cfg, plan); err == nil {
 		t.Fatal("empty secret accepted")
+	}
+}
+
+func fixtureClient(t *testing.T, server *httptest.Server) *http.Client {
+	t.Helper()
+	client := newClient()
+	base := client.Transport.(*http.Transport)
+	base.TLSClientConfig.RootCAs = server.Client().Transport.(*http.Transport).TLSClientConfig.RootCAs
+	client.Transport = rewriteTransport{server.URL, base, t}
+	t.Cleanup(base.CloseIdleConnections)
+	return client
+}
+func TestProductionClientRejectsUntrustedTLSAndCancellation(t *testing.T) {
+	_, plan := fixturePlan(t)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("untrusted/cancelled request reached HTTP handler") }))
+	defer server.Close()
+	client := newClient()
+	base := client.Transport.(*http.Transport)
+	defer base.CloseIdleConnections()
+	client.Transport = rewriteTransport{server.URL, base, t}
+	if _, err := search(context.Background(), client, "synthetic-key", plan); err == nil {
+		t.Fatal("untrusted TLS accepted")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := search(ctx, fixtureClient(t, server), "synthetic-key", plan); err == nil {
+		t.Fatal("cancelled search accepted")
 	}
 }
