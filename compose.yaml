@@ -1,0 +1,38 @@
+services:
+  eraser:
+    image: ${ERASER_IMAGE:-git.nicholstech.org/nichols-homelab/eraser:stable}
+    build:
+      context: .
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      ERASER_DATA_DIR: /data
+      ERASER_CONFIG_FILE: /run/secrets/eraser_config
+      ERASER_ENABLE_SEND: "false"
+      ERASER_PUBLIC_ORIGIN: http://localhost:8080
+    volumes:
+      - eraser-data:/data
+    secrets:
+      - eraser_config
+      - smtp_password
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=65532,gid=65532
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 1.0
+    healthcheck:
+      test: [CMD, /eraser, healthcheck]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+secrets:
+  eraser_config:
+    file: ./secrets/config.yaml
+  smtp_password:
+    file: ./secrets/smtp-password
+volumes:
+  eraser-data:

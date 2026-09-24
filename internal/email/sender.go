@@ -3,54 +3,54 @@ package email
 import (
 	"context"
 	"fmt"
-	"net/mail"
-	"strings"
-
 	"github.com/eraser-privacy/eraser/internal/config"
+	"os"
+	"strings"
 )
 
-type Message struct {
-	To      string
-	From    string
-	Subject string
-	Body    string
-}
-
+type Message struct{ To, From, Subject, Body string }
 type Result struct {
 	Success   bool
+	Uncertain bool
 	MessageID string
 	Error     error
 }
-
 type Sender interface {
-	Send(ctx context.Context, msg Message) Result
+	Send(context.Context, Message) Result
 	Name() string
 }
 
-func NewSender(cfg config.EmailConfig) (Sender, error) {
-	if cfg.Provider == "" || cfg.Provider == "smtp" {
-		return NewSMTPSender(cfg.SMTP, cfg.From), nil
+func NewSender(cfg *config.Config) (Sender, error) {
+	if cfg == nil || cfg.Options.DryRun || os.Getenv("ERASER_ENABLE_SEND") != "true" {
+		return nil, fmt.Errorf("delivery disabled: dry_run must be false and ERASER_ENABLE_SEND=true")
 	}
-	return nil, fmt.Errorf("unknown email provider: %s (only smtp is supported)", cfg.Provider)
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	password, err := config.ReadSecret(cfg.Email.SMTP.PasswordFile)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Email.SMTP.Username != "" && password == "" {
+		return nil, fmt.Errorf("SMTP password_file is required")
+	}
+	allowed := map[string]bool{}
+	for id, a := range cfg.Options.ApprovedBrokers {
+		if cfg.Approved(id, a.Email) {
+			allowed[a.Email] = true
+		}
+	}
+	return &SMTPSender{config: cfg.Email.SMTP, from: cfg.Email.From, password: password, allowed: allowed}, nil
 }
-
-// ValidateEmail checks for injection characters and RFC 5322 compliance
-func ValidateEmail(email string) error {
-	if strings.ContainsAny(email, "\r\n,;") {
-		return fmt.Errorf("email contains invalid characters")
-	}
-	if _, err := mail.ParseAddress(email); err != nil {
-		return fmt.Errorf("invalid email format: %w", err)
+func ValidateEmail(s string) error {
+	if !config.ValidAddress(s) {
+		return fmt.Errorf("invalid email address")
 	}
 	return nil
 }
-
-func validateMessage(msg Message) error {
-	if err := ValidateEmail(msg.From); err != nil {
-		return fmt.Errorf("invalid sender: %w", err)
-	}
-	if err := ValidateEmail(msg.To); err != nil {
-		return fmt.Errorf("invalid recipient: %w", err)
+func validateMessage(m Message) error {
+	if !config.ValidAddress(m.From) || !config.ValidAddress(m.To) || strings.ContainsAny(m.Subject, "\r\n\x00") {
+		return fmt.Errorf("invalid message headers")
 	}
 	return nil
 }

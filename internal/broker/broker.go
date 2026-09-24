@@ -2,9 +2,11 @@ package broker
 
 import (
 	"fmt"
+	"net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -19,7 +21,7 @@ func isValidURL(rawURL string) bool {
 		return false
 	}
 	scheme := strings.ToLower(u.Scheme)
-	return scheme == "http" || scheme == "https"
+	return (scheme == "http" || scheme == "https") && u.Hostname() != "" && u.User == nil
 }
 
 func sanitizeBroker(b *Broker) {
@@ -32,16 +34,16 @@ func sanitizeBroker(b *Broker) {
 }
 
 type Broker struct {
-	ID          string   `yaml:"id"`
-	Name        string   `yaml:"name"`
-	Email       string   `yaml:"email"`
-	Website     string   `yaml:"website,omitempty"`
-	OptOutURL   string   `yaml:"opt_out_url,omitempty"`
-	Region      string   `yaml:"region"` // "us", "eu", "global"
-	Category    string   `yaml:"category,omitempty"` // "people-search", "marketing", "background-check", etc.
-	Notes       string   `yaml:"notes,omitempty"`
-	RequiresID  bool     `yaml:"requires_id,omitempty"` // If they require ID verification
-	Tags        []string `yaml:"tags,omitempty"`
+	ID         string   `yaml:"id"`
+	Name       string   `yaml:"name"`
+	Email      string   `yaml:"email"`
+	Website    string   `yaml:"website,omitempty"`
+	OptOutURL  string   `yaml:"opt_out_url,omitempty"`
+	Region     string   `yaml:"region"`             // "us", "eu", "global"
+	Category   string   `yaml:"category,omitempty"` // "people-search", "marketing", "background-check", etc.
+	Notes      string   `yaml:"notes,omitempty"`
+	RequiresID bool     `yaml:"requires_id,omitempty"` // If they require ID verification
+	Tags       []string `yaml:"tags,omitempty"`
 }
 
 type BrokerDatabase struct {
@@ -49,7 +51,7 @@ type BrokerDatabase struct {
 }
 
 func LoadFromFile(path string) (*BrokerDatabase, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- Catalog path is local administrator configuration, never HTTP input.
 	if err != nil {
 		return nil, fmt.Errorf("failed to read broker file: %w", err)
 	}
@@ -59,8 +61,20 @@ func LoadFromFile(path string) (*BrokerDatabase, error) {
 		return nil, fmt.Errorf("failed to parse broker file: %w", err)
 	}
 
+	seen := map[string]bool{}
 	for i := range db.Brokers {
-		sanitizeBroker(&db.Brokers[i])
+		b := &db.Brokers[i]
+		if !regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,99}$`).MatchString(b.ID) || seen[b.ID] {
+			return nil, fmt.Errorf("invalid or duplicate broker ID at entry %d", i)
+		}
+		seen[b.ID] = true
+		if b.Email != "" {
+			a, e := mail.ParseAddress(b.Email)
+			if e != nil || a.Address != b.Email || strings.ContainsAny(b.Email, "\r\n,;\x00") {
+				return nil, fmt.Errorf("invalid broker recipient at entry %d", i)
+			}
+		}
+		sanitizeBroker(b)
 	}
 	return &db, nil
 }
@@ -128,76 +142,4 @@ func (db *BrokerDatabase) FindByID(id string) *Broker {
 		}
 	}
 	return nil
-}
-
-func (db *BrokerDatabase) Save(path string) error {
-	data, err := yaml.Marshal(db)
-	if err != nil {
-		return fmt.Errorf("failed to serialize brokers: %w", err)
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
-func (db *BrokerDatabase) Add(broker Broker) error {
-	if db.FindByID(broker.ID) != nil {
-		return fmt.Errorf("broker with ID %q already exists", broker.ID)
-	}
-	db.Brokers = append(db.Brokers, broker)
-	return nil
-}
-
-// FindByEmail finds a broker by their email address
-func (db *BrokerDatabase) FindByEmail(email string) *Broker {
-	email = strings.ToLower(email)
-	for i := range db.Brokers {
-		if strings.ToLower(db.Brokers[i].Email) == email {
-			return &db.Brokers[i]
-		}
-	}
-	return nil
-}
-
-// RemoveByEmail removes a broker by their email address
-// Returns the removed broker, or nil if not found
-func (db *BrokerDatabase) RemoveByEmail(email string) *Broker {
-	email = strings.ToLower(email)
-	for i := range db.Brokers {
-		if strings.ToLower(db.Brokers[i].Email) == email {
-			removed := db.Brokers[i]
-			db.Brokers = append(db.Brokers[:i], db.Brokers[i+1:]...)
-			return &removed
-		}
-	}
-	return nil
-}
-
-// RemoveByID removes a broker by their ID
-// Returns the removed broker, or nil if not found
-func (db *BrokerDatabase) RemoveByID(id string) *Broker {
-	id = strings.ToLower(id)
-	for i := range db.Brokers {
-		if strings.ToLower(db.Brokers[i].ID) == id {
-			removed := db.Brokers[i]
-			db.Brokers = append(db.Brokers[:i], db.Brokers[i+1:]...)
-			return &removed
-		}
-	}
-	return nil
-}
-
-// SaveWithBackup saves the database to file, creating a backup first
-func (db *BrokerDatabase) SaveWithBackup(path string) error {
-	// Create backup
-	if _, err := os.Stat(path); err == nil {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("failed to read file for backup: %w", err)
-		}
-		backupPath := path + ".bak"
-		if err := os.WriteFile(backupPath, data, 0644); err != nil {
-			return fmt.Errorf("failed to create backup: %w", err)
-		}
-	}
-
-	return db.Save(path)
 }

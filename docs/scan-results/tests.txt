@@ -1,0 +1,8 @@
+ok  	github.com/eraser-privacy/eraser/cmd/eraser	(cached)
+?   	github.com/eraser-privacy/eraser/internal/broker	[no test files]
+ok  	github.com/eraser-privacy/eraser/internal/config	(cached)
+ok  	github.com/eraser-privacy/eraser/internal/email	(cached)
+?   	github.com/eraser-privacy/eraser/internal/history	[no test files]
+ok  	github.com/eraser-privacy/eraser/internal/service	1.143s
+?   	github.com/eraser-privacy/eraser/internal/template	[no test files]
+ok  	github.com/eraser-privacy/eraser/internal/web	(cached)

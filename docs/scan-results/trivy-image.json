@@ -1,0 +1,342 @@
+{
+  "SchemaVersion": 2,
+  "Trivy": {
+    "Version": "0.74.0"
+  },
+  "ReportID": "01a0d419-f443-72b4-82b9-263f8792fc82",
+  "CreatedAt": "2026-09-24T11:47:45.859180444-04:00",
+  "ArtifactID": "sha256:12afd00a469b0d187ddaeeb2d0b9af310e87f3808d87c9bdd2609c046f5b56ab",
+  "ArtifactName": "/tmp/eraser-image.tar",
+  "ArtifactType": "container_image",
+  "Metadata": {
+    "Size": 15192064,
+    "ImageID": "sha256:61589b72e5338b2df6570e970aa9213aac649015ef0cc4541a991a01fc946000",
+    "DiffIDs": [
+      "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+    ],
+    "RepoTags": [
+      "docker.io/library/eraser:hardening",
+      "localhost/eraser:hardening"
+    ],
+    "Reference": "docker.io/library/eraser:hardening",
+    "ImageConfig": {
+      "architecture": "amd64",
+      "container": "6ccca9e1a270208f20afb31ebe896ac9a5ebcb1344735a279a878ef248893404",
+      "created": "2026-09-24T15:47:11.605798161Z",
+      "history": [
+        {
+          "created": "2026-09-24T15:47:10.500246317Z",
+          "created_by": "/bin/sh -c #(nop) LABEL org.opencontainers.image.title=\"Eraser hardened\"       org.opencontainers.image.source=\"https://git.nicholstech.org/Nichols-HomeLab/eraser\"",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:10.644189803Z",
+          "created_by": "/bin/sh -c #(nop) COPY file:1fb2b1a1d004bdea9bd4ba93862a8afe238f6cf81436097d7894ef6328867b49 in /etc/ssl/certs/ca-certificates.crt ",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:10.789058251Z",
+          "created_by": "/bin/sh -c #(nop) COPY file:cc865d5a23b7f63f7e4698173139916fd0affb8ff1f1c8fca5335b087f702275 in /etc/passwd ",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:10.929333977Z",
+          "created_by": "/bin/sh -c #(nop) COPY file:3dbd506bad6f6156f7bc86a097f8b7ea75437c06760d5f729f537d64ad650529 in /etc/group ",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.088701129Z",
+          "created_by": "/bin/sh -c #(nop) COPY file:3845232eeeb8957228a9090c5f4fa48eba4c1563542cdcdb3fb6690b05710bcc in /eraser ",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.225395098Z",
+          "created_by": "/bin/sh -c #(nop) COPY file:4b4c5d829cee84b9e2a353d9d47ec563c6867407180e3df04573abac848f24e5 in /app/data/brokers.yaml ",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.38044661Z",
+          "created_by": "/bin/sh -c #(nop) COPY dir:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef in /data ",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.436991424Z",
+          "created_by": "/bin/sh -c #(nop) USER 65532:65532",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.474724302Z",
+          "created_by": "/bin/sh -c #(nop) WORKDIR /app",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.520037564Z",
+          "created_by": "/bin/sh -c #(nop) ENV ERASER_DATA_DIR=/data ERASER_BROKERS_FILE=/app/data/brokers.yaml ERASER_ENABLE_SEND=false",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.543414953Z",
+          "created_by": "/bin/sh -c #(nop) EXPOSE 8080",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.561432382Z",
+          "created_by": "/bin/sh -c #(nop) HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD [\"/eraser\", \"healthcheck\"]",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.58135277Z",
+          "created_by": "/bin/sh -c #(nop) ENTRYPOINT [\"/eraser\"]",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-09-24T15:47:11.640393317Z",
+          "created_by": "/bin/sh -c #(nop) CMD [\"serve\", \"--listen\", \"0.0.0.0:8080\"]"
+        }
+      ],
+      "os": "linux",
+      "rootfs": {
+        "type": "layers",
+        "diff_ids": [
+          "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+        ]
+      },
+      "config": {
+        "Cmd": [
+          "serve",
+          "--listen",
+          "0.0.0.0:8080"
+        ],
+        "Healthcheck": {
+          "Test": [
+            "CMD",
+            "/eraser",
+            "healthcheck"
+          ],
+          "Interval": 30000000000,
+          "Timeout": 5000000000,
+          "StartPeriod": 10000000000
+        },
+        "Entrypoint": [
+          "/eraser"
+        ],
+        "Env": [
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "ERASER_DATA_DIR=/data",
+          "ERASER_BROKERS_FILE=/app/data/brokers.yaml",
+          "ERASER_ENABLE_SEND=false"
+        ],
+        "Hostname": "4234796aaaed",
+        "Labels": {
+          "io.buildah.version": "1.39.3",
+          "org.opencontainers.image.source": "https://git.nicholstech.org/Nichols-HomeLab/eraser",
+          "org.opencontainers.image.title": "Eraser hardened"
+        },
+        "User": "65532:65532",
+        "WorkingDir": "/app",
+        "ExposedPorts": {
+          "8080/tcp": {}
+        }
+      }
+    },
+    "Layers": [
+      {
+        "Size": 15192064,
+        "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+      }
+    ]
+  },
+  "Results": [
+    {
+      "Target": "eraser",
+      "Class": "lang-pkgs",
+      "Type": "gobinary",
+      "Packages": [
+        {
+          "ID": "github.com/eraser-privacy/eraser",
+          "Name": "github.com/eraser-privacy/eraser",
+          "Identifier": {
+            "PURL": "pkg:golang/github.com/eraser-privacy/eraser",
+            "UID": "1090dd10035f9512"
+          },
+          "Relationship": "root",
+          "DependsOn": [
+            "github.com/dustin/go-humanize@v1.0.1",
+            "github.com/google/uuid@v1.6.0",
+            "github.com/remyoudompheng/bigfft@v0.0.0-20230129092748-24d4a6f8daec",
+            "github.com/spf13/cobra@v1.10.2",
+            "github.com/spf13/pflag@v1.0.9",
+            "golang.org/x/sys@v0.47.0",
+            "gopkg.in/yaml.v3@v3.0.1",
+            "modernc.org/libc@v1.75.7",
+            "modernc.org/mathutil@v1.7.1",
+            "modernc.org/memory@v1.12.1",
+            "modernc.org/sqlite@v1.59.0",
+            "stdlib@v1.27.1"
+          ],
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "stdlib@v1.27.1",
+          "Name": "stdlib",
+          "Identifier": {
+            "PURL": "pkg:golang/stdlib@v1.27.1",
+            "UID": "36384e7a44687d72"
+          },
+          "Version": "v1.27.1",
+          "Relationship": "direct",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "github.com/dustin/go-humanize@v1.0.1",
+          "Name": "github.com/dustin/go-humanize",
+          "Identifier": {
+            "PURL": "pkg:golang/github.com/dustin/go-humanize@v1.0.1",
+            "UID": "f8081de473246953"
+          },
+          "Version": "v1.0.1",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "github.com/google/uuid@v1.6.0",
+          "Name": "github.com/google/uuid",
+          "Identifier": {
+            "PURL": "pkg:golang/github.com/google/uuid@v1.6.0",
+            "UID": "26c07aea32bef477"
+          },
+          "Version": "v1.6.0",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "github.com/remyoudompheng/bigfft@v0.0.0-20230129092748-24d4a6f8daec",
+          "Name": "github.com/remyoudompheng/bigfft",
+          "Identifier": {
+            "PURL": "pkg:golang/github.com/remyoudompheng/bigfft@v0.0.0-20230129092748-24d4a6f8daec",
+            "UID": "78122112d5d73a7a"
+          },
+          "Version": "v0.0.0-20230129092748-24d4a6f8daec",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "github.com/spf13/cobra@v1.10.2",
+          "Name": "github.com/spf13/cobra",
+          "Identifier": {
+            "PURL": "pkg:golang/github.com/spf13/cobra@v1.10.2",
+            "UID": "59f8f76af2c7ef83"
+          },
+          "Version": "v1.10.2",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "github.com/spf13/pflag@v1.0.9",
+          "Name": "github.com/spf13/pflag",
+          "Identifier": {
+            "PURL": "pkg:golang/github.com/spf13/pflag@v1.0.9",
+            "UID": "38775d84d21c3170"
+          },
+          "Version": "v1.0.9",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "golang.org/x/sys@v0.47.0",
+          "Name": "golang.org/x/sys",
+          "Identifier": {
+            "PURL": "pkg:golang/golang.org/x/sys@v0.47.0",
+            "UID": "613f394a59af8c86"
+          },
+          "Version": "v0.47.0",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "gopkg.in/yaml.v3@v3.0.1",
+          "Name": "gopkg.in/yaml.v3",
+          "Identifier": {
+            "PURL": "pkg:golang/gopkg.in/yaml.v3@v3.0.1",
+            "UID": "a01d971d71f39561"
+          },
+          "Version": "v3.0.1",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "modernc.org/libc@v1.75.7",
+          "Name": "modernc.org/libc",
+          "Identifier": {
+            "PURL": "pkg:golang/modernc.org/libc@v1.75.7",
+            "UID": "ecfd1bfe85de7496"
+          },
+          "Version": "v1.75.7",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "modernc.org/mathutil@v1.7.1",
+          "Name": "modernc.org/mathutil",
+          "Identifier": {
+            "PURL": "pkg:golang/modernc.org/mathutil@v1.7.1",
+            "UID": "13f0478a7c3f1465"
+          },
+          "Version": "v1.7.1",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "modernc.org/memory@v1.12.1",
+          "Name": "modernc.org/memory",
+          "Identifier": {
+            "PURL": "pkg:golang/modernc.org/memory@v1.12.1",
+            "UID": "d649cb555a07f3c1"
+          },
+          "Version": "v1.12.1",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        },
+        {
+          "ID": "modernc.org/sqlite@v1.59.0",
+          "Name": "modernc.org/sqlite",
+          "Identifier": {
+            "PURL": "pkg:golang/modernc.org/sqlite@v1.59.0",
+            "UID": "78f1289b3734931"
+          },
+          "Version": "v1.59.0",
+          "Layer": {
+            "DiffID": "sha256:82dedb8843a244b84ff12741f4ab58710f400209a1d2254ec88cc76841772a93"
+          },
+          "AnalyzedBy": "gobinary"
+        }
+      ]
+    }
+  ]
+}

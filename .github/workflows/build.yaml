@@ -1,0 +1,125 @@
+name: build-and-security
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: eraser-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ERASER_ENABLE_SEND: 'false'
+      GOTOOLCHAIN: local
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.27.1'
+          cache: true
+      - name: Test and analyze
+        run: |
+          go mod verify
+          go test -race ./...
+          go vet ./...
+          go install honnef.co/go/tools/cmd/staticcheck@v0.8.1
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          staticcheck ./...
+          gosec -fmt json -out gosec-results.json ./...
+          govulncheck ./...
+      - name: Scan repository secrets
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  /tmp/gitleaks.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks git . --redact
+          /tmp/gitleaks dir . --redact
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - name: Build candidate without publishing
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          load: true
+          tags: eraser:candidate
+          build-args: VERSION=${{ github.sha }}
+          platforms: linux/amd64
+      - name: Scan candidate image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: eraser:candidate
+          version: v0.74.0
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          format: json
+          output: trivy-image.json
+      - name: Generate SBOM
+        run: trivy image --format cyclonedx --output sbom.cdx.json eraser:candidate
+      - name: Image smoke test (no egress)
+        run: |
+          docker run -d --name eraser-smoke --network none --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /data:uid=65532,gid=65532,mode=0700 eraser:candidate
+          trap 'docker rm -f eraser-smoke' EXIT
+          for _attempt in $(seq 1 20); do
+            if docker exec eraser-smoke /eraser healthcheck; then break; fi
+            sleep 1
+          done
+          docker exec eraser-smoke /eraser healthcheck
+          test "$(docker inspect -f '{{.Config.User}}' eraser-smoke)" = '65532:65532'
+      - name: Compose smoke test
+        run: |
+          sudo ./scripts/prepare-compose.sh
+          ERASER_IMAGE=eraser:candidate docker compose config --quiet
+          ERASER_IMAGE=eraser:candidate docker compose up -d --no-build --wait
+          ERASER_IMAGE=eraser:candidate docker compose exec -T eraser /eraser healthcheck
+          ERASER_IMAGE=eraser:candidate docker compose down -v
+      - name: Upload scan evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: security-results
+          path: |
+            gosec-results.json
+            trivy-image.json
+            sbom.cdx.json
+          retention-days: 30
+      - name: Authenticate to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Authenticate to homelab registry
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: git.nicholstech.org
+          username: ${{ secrets.GITEA_REGISTRY_USER }}
+          password: ${{ secrets.GITEA_REGISTRY_TOKEN }}
+      - name: Publish only the tested and scanned image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GHCR_IMAGE: ghcr.io/davidn0809/eraser
+          GITEA_IMAGE: git.nicholstech.org/nichols-homelab/eraser
+        run: |
+          for image in "$GHCR_IMAGE" "$GITEA_IMAGE"; do
+            docker tag eraser:candidate "$image:sha-${GITHUB_SHA}"
+            docker tag eraser:candidate "$image:stable"
+            docker push "$image:sha-${GITHUB_SHA}"
+            docker push "$image:stable"
+          done

@@ -3,8 +3,8 @@ To Whom It May Concern at {{.BrokerName}},
 I am writing to request the removal of my personal information from your database and any associated services.
 
 PERSONAL IDENTIFICATION:
-- Full Name: {{.FullName}}
-- Email Address: {{.Email}}
+{{if .FullName}}- Full Name: {{.FullName}}{{end}}
+{{if .Email}}- Email Address: {{.Email}}{{end}}
 {{- if .Address}}
 - Address: {{.Address}}
 {{- end}}
@@ -42,7 +42,7 @@ I am exercising my privacy rights under applicable data protection laws, which m
 - Colorado Privacy Act (CPA) - Colorado
 - Other applicable state and federal privacy laws
 
-Please respond to this request within 30 days. If you require any additional information to verify my identity or process this request, please contact me at {{.Email}}.
+Please respond to this request within 30 days. If you require any additional information to verify my identity or process this request, please reply to this message.
 
 Thank you for your prompt attention to this matter.
 

@@ -1,0 +1,11 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: eraser-isolation
+  namespace: eraser
+spec:
+  podSelector:
+    matchLabels: {app: eraser}
+  policyTypes: [Ingress, Egress]
+  ingress: [] # Access through kubectl port-forward; add a narrow ingress rule for your proxy.
+  egress: [] # Preview needs no network. Add explicit DNS and SMTP-relay rules before live delivery.

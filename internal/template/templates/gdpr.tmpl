@@ -3,8 +3,8 @@ To Whom It May Concern at {{.BrokerName}},
 I am writing to exercise my right to erasure under Article 17 of the General Data Protection Regulation (GDPR). I request that you delete all personal data you hold about me.
 
 PERSONAL IDENTIFICATION:
-- Full Name: {{.FullName}}
-- Email Address: {{.Email}}
+{{if .FullName}}- Full Name: {{.FullName}}{{end}}
+{{if .Email}}- Email Address: {{.Email}}{{end}}
 {{- if .Address}}
 - Address: {{.Address}}
 {{- end}}
@@ -41,7 +41,7 @@ REQUEST:
 
 Please note that under Article 12 of the GDPR, you are required to respond to this request within one month. Failure to comply may result in a complaint to the relevant supervisory authority.
 
-If you require any additional information to verify my identity or locate my records, please contact me at {{.Email}}.
+If you require any additional information to verify my identity or locate my records, please reply to this message.
 
 Thank you for your prompt attention to this matter.
 

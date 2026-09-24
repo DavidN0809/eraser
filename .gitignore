@@ -55,3 +55,12 @@ browser-data/
 
 # Personal data that might leak
 pending_job.json
+
+# Self-hosted private state and operator credentials
+secrets/
+*.db
+*.db-*
+web-token
+pending_job.json
+.env
+*.tar

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eraser
+  namespace: eraser
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: eraser}
+  template:
+    metadata:
+      labels: {app: eraser}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: eraser
+          image: git.nicholstech.org/nichols-homelab/eraser:stable
+          imagePullPolicy: Always
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: ERASER_DATA_DIR, value: /data}
+            - {name: ERASER_CONFIG_FILE, value: /run/secrets/config.yaml}
+            - {name: ERASER_ENABLE_SEND, value: "false"}
+            - {name: ERASER_PUBLIC_ORIGIN, value: "http://localhost:8080"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 20
+            periodSeconds: 3
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: secrets, mountPath: /run/secrets, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: eraser-data}
+        - name: secrets
+          secret:
+            secretName: eraser-secrets
+            optional: true # Empty first boot is authenticated, with no approved recipients.
+            defaultMode: 0440
+        - name: tmp
+          emptyDir: {medium: Memory, sizeLimit: 16Mi}

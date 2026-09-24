@@ -1,51 +1,26 @@
-# Eraser Configuration Example
-# Copy this file to ~/.eraser/config.yaml and fill in your details
-
+# Synthetic-only example. Store the real file outside Git; chmod 0600.
+# Unknown fields fail closed. Legacy embedded passwords are deliberately rejected.
 profile:
-  # Required: Your personal information for removal requests
-  first_name: John
-  last_name: Doe
-  email: john.doe@example.com
-
-  # Optional: Additional info helps brokers locate your records
-  address: "123 Main Street"
-  city: "San Francisco"
-  state: "CA"
-  zip_code: "94102"
-  country: "USA"
-  phone: "+1-555-123-4567"
-  date_of_birth: "1990-01-15"  # Format: YYYY-MM-DD
-
+  first_name: Synthetic
+  last_name: Person
+  email: person@example.invalid
 email:
-  # Email provider: "smtp" or "sendgrid"
   provider: smtp
-  from: john.doe@example.com
-
-  # SMTP configuration (for Gmail, Outlook, etc.)
+  from: person@example.invalid
   smtp:
-    host: smtp.gmail.com
+    host: smtp.example.invalid
     port: 465
-    username: john.doe@gmail.com
-    password: your-app-password  # Use app password, not your regular password!
-    use_tls: true
-
-  # SendGrid configuration (alternative to SMTP)
-  # sendgrid:
-  #   api_key: SG.xxxxxxxxxxxxxxxxxxxx
-
+    username: person@example.invalid
+    password_file: /run/secrets/smtp_password
+    tls_mode: implicit # or starttls (usually port 587); no plaintext mode
 options:
-  # Template to use: "gdpr", "ccpa", or "generic"
+  dry_run: true
   template: generic
-
-  # Delay between emails in milliseconds (avoid spam filters)
   rate_limit_ms: 2000
-
-  # Only send to brokers in these regions (optional)
-  # regions:
-  #   - us
-  #   - global
-
-  # Skip these brokers (optional)
-  # excluded_brokers:
-  #   - spokeo
-  #   - whitepages
+  regions: []
+  excluded_brokers: []
+  approved_brokers: {}
+  # Approve only a verified, current recipient you intend to contact:
+  # example-id:
+  #   email: privacy@example.invalid
+  #   fields: [name] # optional: email,address,city,state,zip_code,country,phone,date_of_birth

@@ -1,0 +1,26 @@
+name: upstream-watch
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * 1'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Report upstream changes for review
+        run: |
+          git remote add upstream https://github.com/digisamroc/eraser.git
+          git fetch upstream main --tags
+          if ! git merge-base --is-ancestor upstream/main HEAD; then
+            echo 'New upstream changes require a reviewed merge using scripts/update-upstream.sh.' >> "$GITHUB_STEP_SUMMARY"
+            git log --oneline HEAD..upstream/main >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo 'Upstream is fully incorporated.' >> "$GITHUB_STEP_SUMMARY"

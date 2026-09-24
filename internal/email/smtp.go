@@ -3,111 +3,106 @@ package email
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
-	"net/smtp"
-	"strings"
-
 	"github.com/eraser-privacy/eraser/internal/config"
+	"net"
+	"net/smtp"
+	"os"
+	"strconv"
+	"time"
 )
 
-type SMTPSender struct {
-	config config.SMTPConfig
-	from   string
-}
+var errDeliveryUncertain = errors.New("delivery acceptance uncertain")
 
-func NewSMTPSender(cfg config.SMTPConfig, from string) *SMTPSender {
-	return &SMTPSender{config: cfg, from: from}
+type SMTPSender struct {
+	rootCAs        *x509.CertPool // nil uses system trust; package-local fixtures supply a test CA.
+	config         config.SMTPConfig
+	from, password string
+	allowed        map[string]bool
 }
 
 func (s *SMTPSender) Name() string { return "smtp" }
-
 func (s *SMTPSender) Send(ctx context.Context, msg Message) Result {
+	// The transport itself fails closed even if a caller forgets the higher-level gate.
+	if os.Getenv("ERASER_ENABLE_SEND") != "true" || !s.allowed[msg.To] || msg.From != s.from {
+		return Result{Error: fmt.Errorf("delivery is not authorized")}
+	}
 	if err := validateMessage(msg); err != nil {
-		return Result{Success: false, Error: err}
+		return Result{Error: err}
 	}
-	// Reject headers with CRLF to prevent injection
-	if strings.ContainsAny(msg.Subject, "\r\n") {
-		return Result{Success: false, Error: fmt.Errorf("subject contains invalid characters")}
-	}
-
-	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
-
-	var message strings.Builder
-	message.WriteString(fmt.Sprintf("From: %s\r\n", msg.From))
-	message.WriteString(fmt.Sprintf("To: %s\r\n", msg.To))
-	message.WriteString(fmt.Sprintf("Subject: %s\r\n", msg.Subject))
-	message.WriteString("MIME-Version: 1.0\r\n")
-	message.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
-	message.WriteString("\r\n")
-	message.WriteString(msg.Body)
-
-	auth := smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
-
-	var err error
-	if s.config.UseTLS {
-		err = s.sendWithTLS(addr, auth, msg.From, msg.To, []byte(message.String()))
-	} else {
-		if s.config.Username != "" {
-			return Result{Success: false, Error: fmt.Errorf("SMTP auth requires TLS")}
+	if err := s.deliver(ctx, msg); err != nil {
+		if errors.Is(err, errDeliveryUncertain) {
+			return Result{Uncertain: true, Error: fmt.Errorf("SMTP acceptance uncertain; inspect provider before retrying")}
 		}
-		err = smtp.SendMail(addr, nil, msg.From, []string{msg.To}, []byte(message.String()))
+		return Result{Error: fmt.Errorf("SMTP delivery failed; check server, TLS and credentials")}
 	}
-	if err != nil {
-		return Result{Success: false, Error: sanitizeSMTPError(err)}
-	}
-
-	return Result{
-		Success:   true,
-		MessageID: fmt.Sprintf("smtp-%s-%d", msg.To, ctx.Value("sequence")),
-	}
+	return Result{Success: true}
 }
-
-func sanitizeSMTPError(err error) error {
-	s := strings.ToLower(err.Error())
-	if strings.Contains(s, "auth") {
-		return fmt.Errorf("SMTP authentication failed")
-	}
-	if strings.Contains(s, "certificate") {
-		return fmt.Errorf("TLS certificate error")
-	}
-	return fmt.Errorf("SMTP error: check your configuration")
-}
-
-func (s *SMTPSender) sendWithTLS(addr string, auth smtp.Auth, from, to string, msg []byte) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{
-		ServerName: s.config.Host,
-		MinVersion: tls.VersionTLS12,
-	})
+func (s *SMTPSender) deliver(parent context.Context, msg Message) error {
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+	defer cancel()
+	dialer := net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(s.config.Host, strconv.Itoa(s.config.Port)))
 	if err != nil {
-		return fmt.Errorf("TLS connection failed: %w", err)
+		return err
 	}
 	defer conn.Close()
-
-	client, err := smtp.NewClient(conn, s.config.Host)
+	deadline, _ := ctx.Deadline()
+	if err = conn.SetDeadline(deadline); err != nil {
+		return err
+	}
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
+	tc := &tls.Config{ServerName: s.config.Host, MinVersion: tls.VersionTLS12, RootCAs: s.rootCAs}
+	switch s.config.TLSMode {
+	case "implicit":
+		secured := tls.Client(conn, tc)
+		if err = secured.HandshakeContext(ctx); err != nil {
+			return err
+		}
+		conn = secured
+	case "starttls":
+	default:
+		return fmt.Errorf("TLS required")
+	}
+	c, err := smtp.NewClient(conn, s.config.Host)
 	if err != nil {
-		return fmt.Errorf("SMTP client creation failed: %w", err)
+		return err
 	}
-	defer client.Close()
-
-	if err := client.Auth(auth); err != nil {
-		return fmt.Errorf("authentication failed: %w", err)
+	defer c.Close()
+	if s.config.TLSMode == "starttls" {
+		if ok, _ := c.Extension("STARTTLS"); !ok {
+			return fmt.Errorf("STARTTLS required")
+		}
+		if err = c.StartTLS(tc); err != nil {
+			return err
+		}
 	}
-	if err := client.Mail(from); err != nil {
-		return fmt.Errorf("sender rejected: %w", err)
+	if s.config.Username != "" {
+		if err = c.Auth(smtp.PlainAuth("", s.config.Username, s.password, s.config.Host)); err != nil {
+			return err
+		}
 	}
-	if err := client.Rcpt(to); err != nil {
-		return fmt.Errorf("recipient rejected: %w", err)
+	if err = c.Mail(msg.From); err != nil {
+		return err
 	}
-
-	w, err := client.Data()
+	if err = c.Rcpt(msg.To); err != nil {
+		return err
+	}
+	w, err := c.Data()
 	if err != nil {
-		return fmt.Errorf("data command failed: %w", err)
+		return err
 	}
-	if _, err = w.Write(msg); err != nil {
-		return fmt.Errorf("message write failed: %w", err)
+	_, err = fmt.Fprintf(w, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s", msg.From, msg.To, msg.Subject, msg.Body)
+	if err != nil {
+		return errDeliveryUncertain
 	}
-	if err := w.Close(); err != nil {
-		return fmt.Errorf("message finalization failed: %w", err)
+	if err = w.Close(); err != nil {
+		return errDeliveryUncertain
 	}
-	return client.Quit()
+	// DATA acknowledgement is authoritative; QUIT failure must not encourage a duplicate send.
+	_ = c.Quit()
+	return nil
 }

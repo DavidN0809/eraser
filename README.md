@@ -1,304 +1,240 @@
-# Eraser
+# Eraser — maintained self-hosted fork
 
-Take back your privacy. Eraser sends data removal requests to 750+ data brokers on your behalf—for free.
+An authenticated, single-user application for reviewing and sending **individual,
+explicitly approved** data-broker removal requests. No real requests are sent on
+installation, startup, preview, restart, CI, or dry-run.
 
-You know those sites like Spokeo, BeenVerified, and Whitepages that have your home address, phone number, and family members' names? They're called data brokers, and there are hundreds of them. Services like Incogni and DeleteMe charge $100+/year to send opt-out requests to these companies. Eraser does the same thing, but it's open source and completely free.
+- Source of truth: [Nichols-HomeLab/eraser on Gitea](https://git.nicholstech.org/Nichols-HomeLab/eraser)
+- GitHub fork/builds: [DavidN0809/eraser](https://github.com/DavidN0809/eraser)
+- Upstream: [digisamroc/eraser](https://github.com/digisamroc/eraser), retained as `upstream`
+- Image: `git.nicholstech.org/nichols-homelab/eraser:stable`
+- Build mirror: `ghcr.io/davidn0809/eraser:stable`
+- Audit and limitations: [SECURITY_AUDIT.md](SECURITY_AUDIT.md)
 
-### What to Expect
+This is a deliberately narrower fork. The unauthenticated wizard, bulk sends,
+automatic resumption, inbox ingestion/archiving, bounce-driven catalog deletion,
+and browser form/confirmation automation have been removed. Follow up manually
+in your mail client. The broker catalog remains a set of **unverified leads**;
+it is not evidence that any broker holds your information. Sending even an empty
+request reveals your sender email and can create a new association.
 
-**The good:** Eraser automatically sends removal request emails to 750+ data brokers. Many brokers process these requests automatically—you send the email, they remove your data, done.
+## Docker Compose
 
-**The reality:** Some brokers require additional steps. They might send you a confirmation link to click, ask you to fill out a form on their website, or request identity verification. Eraser tracks these responses and shows you exactly what needs manual attention.
+Requires Docker Engine with Compose v2 on Linux. From this checkout:
 
-**The bottom line:** You're not paying $100+/year, and you're taking real action to protect your privacy. Even with some manual steps, Eraser handles the heavy lifting and gives you a fighting chance against the data broker industry.
-
----
-
-## The Easy Way (Web Interface)
-
-If you're not comfortable with command-line tools, Eraser has a visual interface that runs in your web browser.
-
-### What You'll Need
-
-1. **Go** installed on your computer ([download here](https://go.dev/dl/))
-2. A **Gmail account** to send emails from (with an App Password—setup instructions below)
-
-### Getting Started
-
-**Step 1: Download Eraser**
-
-Open your terminal (on Mac, search for "Terminal"; on Windows, use PowerShell) and run:
-
-```bash
-git clone https://github.com/eraser-privacy/eraser.git
-cd eraser
-go build -o eraser ./cmd/eraser
+```sh
+sudo ./scripts/prepare-compose.sh  # synthetic config + empty SMTP secret, mode 0600
+# Edit secrets/config.yaml locally; keep dry_run: true initially.
+docker compose up -d
+docker compose exec eraser /eraser auth-token
 ```
 
-**Step 2: Start the Web Interface**
+Open **http://localhost:8080**. Username: `eraser`. Password: the random token from
+the explicit `auth-token` command. It is generated on the private data volume,
+never logged, and has no default value. Treat the command's output as a secret.
+No personal data or SMTP password is needed to start the UI. The initial
+configuration deliberately approves no recipients.
 
-```bash
-./eraser serve
+The bootstrap script needs root only to set ownership on **host secret files**.
+The application always runs as UID/GID 65532. Compose file secrets preserve
+host ownership, so keep `secrets/config.yaml` and `secrets/smtp-password` owned
+by 65532 with mode 0600. Never commit them. An empty SMTP secret is acceptable
+in preview mode. For a local build: `docker compose build --pull && docker compose up -d`.
+
+`eraser-data` persists SQLite history and the bootstrap authentication token.
+The root filesystem is read-only, all capabilities are dropped, privilege
+escalation is disabled, and resource limits apply. Only loopback port 8080 is
+published. Remote access should use an SSH tunnel or a trusted HTTPS reverse
+proxy. Do not expose the HTTP port directly.
+
+For a supplied web authentication secret, mount a mode-0600 file and set
+`ERASER_AUTH_TOKEN_FILE` to its container path. It must contain at least 32
+random bytes (for example 32 random bytes hex-encoded), not a memorable password.
+Restart after rotating it. Browser Basic authentication has no logout flow;
+close the browser session when finished.
+
+## Kubernetes
+
+Requires a default StorageClass with ReadWriteOnce/filesystem ownership support,
+a CNI enforcing NetworkPolicy, and nodes capable of running linux/amd64 images.
+The manifests use a single replica and Recreate updates for SQLite.
+
+For an authenticated, empty preview installation:
+
+```sh
+kubectl apply -f k8s/
+kubectl -n eraser rollout status deployment/eraser
+kubectl -n eraser exec deployment/eraser -- /eraser auth-token
+kubectl -n eraser port-forward service/eraser 8080:8080
 ```
 
-Open your browser and go to `http://localhost:8080`
+Open http://localhost:8080 using the credentials described above. The optional
+Secret can be absent on first boot; there are then no configured recipients and
+no delivery capability. Nothing resumes from legacy job files.
 
-**Step 3: Complete the Setup Wizard**
+To load a private configuration and SMTP secret, prepare local files from the
+example, then create the Secret **without putting values in shell arguments**:
 
-The wizard walks you through entering your personal information (the data brokers need this to find your records) and setting up email. Just follow the prompts.
-
-**Step 4: Send Removal Requests**
-
-From the dashboard, you can:
-- Browse the list of 750+ data brokers
-- Send requests one at a time or in bulk
-- Track which requests have been sent and their status
-
-That's it. The whole process takes about 10 minutes to set up, and then Eraser handles the rest.
-
-### Setting Up Gmail
-
-Eraser uses your Gmail account to send removal requests. You'll need to create an "App Password" (Google doesn't allow third-party apps to use your regular password).
-
-**One-time setup (takes 2 minutes):**
-
-1. Go to your [Google Account](https://myaccount.google.com)
-2. Enable **2-Factor Authentication** if you haven't already (Security → 2-Step Verification)
-3. Go to [App Passwords](https://myaccount.google.com/apppasswords)
-4. Select "Mail" and your device, then click "Generate"
-5. Copy the 16-character password (looks like `xxxx xxxx xxxx xxxx`)
-
-That's the password you'll use in Eraser's setup wizard. Your regular Gmail password won't work.
-
-**Daily sending limits:** Gmail allows ~500 emails per day. Eraser automatically chunks large sends across multiple days (250/day to stay safe) so you don't hit rate limits.
-
----
-
-## For Developers: CLI Usage
-
-If you prefer the command line, Eraser has a full CLI.
-
-### Installation
-
-```bash
-git clone https://github.com/eraser-privacy/eraser.git
-cd eraser
-go build -o eraser ./cmd/eraser
+```sh
+kubectl -n eraser create secret generic eraser-secrets \
+  --from-file=config.yaml=./secrets/config.yaml \
+  --from-file=smtp_password=./secrets/smtp-password \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n eraser rollout restart deployment/eraser
 ```
 
-### Quick Start
+For the Nichols homelab, store the encrypted Secret and workload manifests in
+`k3s-fluxcd` using its SOPS/Flux conventions before a durable deployment. The
+commands above are the portable standalone option; do not introduce unmanaged
+permanent cluster state into the homelab. Kubernetes Secrets are base64-encoded,
+not encrypted merely because they are Secrets: restrict RBAC, enable storage
+and backup encryption, and avoid printing/dumping them.
 
-```bash
-# Interactive setup
-./eraser init
+The PVC requests 1 GiB and uses the default StorageClass. Set `storageClassName`
+to a suitable RWO block-backed class if no default exists. Avoid shared NFS for
+SQLite. The deployment disables service-account token mounting, runs non-root,
+uses RuntimeDefault seccomp, drops every capability, and has a read-only root.
+The Service is ClusterIP; there is no Ingress or LoadBalancer.
 
-# Preview what would be sent (no emails go out)
-./eraser send --dry-run
+NetworkPolicy denies ingress and egress by default. `kubectl port-forward` is
+the intended initial access path. If your CNI restricts port-forward traffic,
+use its documented narrowly scoped access policy. Before live SMTP, allow DNS
+to your cluster resolver and TCP to the **specific trusted SMTP relay IP/port**.
+Do not allow arbitrary HTTP(S) egress or inbound access from all namespaces.
+See [k8s-examples](docs/k8s-examples.md). A TLS proxy requires an ingress rule
+limited to that proxy and `ERASER_PUBLIC_ORIGIN=https://your-exact-host`.
+The proxy must preserve Host and suppress authentication-header logging.
 
-# Send removal requests to all brokers
-./eraser send
+## Approve a recipient and minimize disclosure
 
-# Check your history
-./eraser status
-```
-
-### Commands
-
-| Command | What it does |
-|---------|--------------|
-| `eraser init` | Interactive config setup |
-| `eraser send` | Send removal requests |
-| `eraser send --dry-run` | Preview without sending |
-| `eraser list-brokers` | Show all 750+ brokers |
-| `eraser status` | View history and stats |
-| `eraser status --limit 50` | Show more history |
-| `eraser add-broker` | Add a custom broker |
-| `eraser serve` | Start web interface |
-| `eraser serve -p 3000` | Web interface on custom port |
-
-### Configuration File
-
-Your config lives at `~/.eraser/config.yaml`. Here's the full schema:
+Use `config.example.yaml` as the schema. Configuration is loaded once; restart
+after changes. Unknown fields, legacy embedded passwords, and world-readable
+files are rejected. The config itself contains PII and must be protected even
+though credentials are stored separately.
 
 ```yaml
-profile:
-  first_name: Jane
-  last_name: Doe
-  email: jane@example.com
-  # Optional but helps brokers find your records
-  address: "123 Main Street"
-  city: "San Francisco"
-  state: "CA"
-  zip_code: "94102"
-  country: "USA"
-  phone: "+1-555-123-4567"
-  date_of_birth: "1990-01-15"
-
-email:
-  provider: smtp
-  from: jane@gmail.com
-
-  smtp:
-    host: smtp.gmail.com
-    port: 465
-    username: jane@gmail.com
-    password: your-16-char-app-password  # From Google App Passwords
-    use_tls: true
-
 options:
-  template: generic  # or "gdpr" or "ccpa"
-  rate_limit_ms: 2000  # delay between emails
-
-  # Optional: only target specific regions
-  # regions:
-  #   - us
-  #   - global
-
-  # Optional: skip specific brokers
-  # excluded_brokers:
-  #   - spokeo
-  #   - whitepages
+  dry_run: true
+  template: generic
+  rate_limit_ms: 2000
+  regions: []
+  excluded_brokers: []
+  approved_brokers:
+    example-broker-id:
+      email: privacy@example.invalid
+      fields: [name]
 ```
 
-### Email Templates
+Replace the example ID/email only after independently verifying the actual
+recipient. The exact catalog email must match the approval. Changed upstream
+recipients fail closed until reapproved. An empty field list sends no profile
+fields; the sender address remains visible in SMTP. Optional fields are `name`,
+`email`, `address`, `city`, `state`, `zip_code`, `country`, `phone`,
+`date_of_birth`. DOB, address, phone, and profile email are never included merely
+because they exist in your profile. Do not approve more than the broker needs.
 
-Eraser includes three templates:
+Web: click Preview, inspect the exact recipient and complete body, then confirm
+one request. The approval expires after five minutes, is single-use, and is
+invalidated if the rendered request changes. There is no send-all endpoint.
 
-- **GDPR** — Invokes Article 17 "Right to Erasure" under EU law
-- **CCPA** — Invokes California Consumer Privacy Act rights
-- **Generic** — References multiple privacy laws, works anywhere
+CLI preview also prints the exact message; **its output can contain PII**, so
+keep it out of shared logs:
 
-The generic template is a good default if you're not sure.
-
-### Adding Brokers
-
-The broker database is at `data/brokers.yaml`. To add one:
-
-```yaml
-- id: example-broker
-  name: Example Broker
-  email: privacy@example.com
-  website: https://example.com
-  opt_out_url: https://example.com/optout
-  region: us  # us, eu, or global
-  category: people-search  # people-search, marketing, or background-check
+```sh
+docker compose exec eraser /eraser send --broker example-broker-id --dry-run
 ```
 
-Or use the interactive command:
+## Deliberately enable live mail
 
-```bash
-./eraser add-broker
+Do this only after reviewing the audit and a preview. Both controls are required:
+
+1. Set `options.dry_run: false` in the private config.
+2. Set deployment environment `ERASER_ENABLE_SEND: "true"`, then recreate/restart.
+
+SMTP supports `tls_mode: implicit` (usually 465) or `starttls` (usually 587).
+Certificate/hostname verification is mandatory, TLS is at least 1.2, and STARTTLS
+must be advertised and succeed before AUTH/MAIL. There is no plaintext fallback
+or certificate-validation bypass. `password_file` points to the mounted secret;
+SMTP secrets are never echoed to the UI, serialized in YAML, or recorded in
+SQLite. Use a dedicated low-privilege app password/mail account. API providers
+and inbox passwords are not supported in this fork.
+
+Then use the web confirmation or pass the CLI's reviewed `--approve-sha256`
+digest. `--dry-run` always wins, regardless of the live environment switch.
+There are no periodic sends or retry jobs. An `attempted` history record without
+a later result means delivery is uncertain: check the mail provider before
+retrying. A returned SMTP error can also occur after the provider accepted DATA;
+this application intentionally does not retry automatically.
+
+## Updates, backups, and rollback
+
+The build pipeline tests, runs Go vet/staticcheck/gosec/govulncheck, scans Git
+history/current files with Gitleaks, builds a candidate, scans that **actual
+image** with Trivy, and exercises restricted runtime/Compose startup. Only then
+does it publish `stable` and `sha-<commit>` to Gitea and GHCR. PRs receive checks
+but no registry secrets/publication. Actions are commit-pinned and the Go builder
+is digest-pinned. Weekly rebuilds rerun current vulnerability databases;
+Dependabot proposes Go/base-image/Action updates. Failed scans do not update
+`stable`. See the Actions run and artifacts for each release.
+
+Prefer a registry digest in long-term deployments; `stable` is a convenience
+tag, not an immutable release. Back up first, review the change/audit, then:
+
+```sh
+docker compose pull
+docker compose up -d
+# Kubernetes: edit the image digest in k8s/20-deployment.yaml, then:
+kubectl apply -f k8s/
+kubectl -n eraser rollout status deployment/eraser
 ```
 
----
+To roll back, use the prior image digest. Stop the app before copying SQLite
+(and any sidecars) or snapshotting its volume, then restart. Back up the private
+configuration and secrets separately using encryption/access controls. Do not
+publish backups. Restore into an isolated preview deployment first. UID 65532
+must own restored state. The volume includes the web token: protect it and rotate
+it after an untrusted restore. Never restore a legacy `config.yaml` directly;
+migrate field allowlists/secret files and start with a new data volume. The fork
+does not load legacy inbox/body/profile/job tables; old database files can still
+contain that data until you retire them securely.
 
-## Automate It with GitHub Actions
+Upstream maintenance:
 
-Want Eraser to run automatically every month? Fork the repo and set up GitHub Actions.
-
-### Setup
-
-1. Fork this repository
-2. Go to Settings → Secrets and Variables → Actions
-3. Add these secrets:
-
-**Required:**
-| Secret | Value |
-|--------|-------|
-| `ERASER_FIRST_NAME` | Your first name |
-| `ERASER_LAST_NAME` | Your last name |
-| `ERASER_EMAIL` | Your Gmail address |
-| `ERASER_EMAIL_PROVIDER` | `smtp` |
-| `ERASER_TEMPLATE` | `gdpr`, `ccpa`, or `generic` |
-| `ERASER_SMTP_HOST` | `smtp.gmail.com` |
-| `ERASER_SMTP_PORT` | `465` |
-| `ERASER_SMTP_USERNAME` | Your Gmail address |
-| `ERASER_SMTP_PASSWORD` | Your Gmail App Password |
-
-**Optional (but recommended):**
-| Secret | Value |
-|--------|-------|
-| `ERASER_ADDRESS` | Street address |
-| `ERASER_CITY` | City |
-| `ERASER_STATE` | State |
-| `ERASER_ZIP_CODE` | ZIP code |
-| `ERASER_COUNTRY` | Country |
-| `ERASER_PHONE` | Phone number |
-
-The workflow runs on the 1st of every month. You can also trigger it manually from the Actions tab.
-
----
-
-## Security Notes
-
-- **Your config file contains personal data.** Don't commit it to git. The file is created with restricted permissions (readable only by you).
-- **Use app passwords, not your real password.** For Gmail, this is required. For other providers, it's still a good idea.
-- **Consider using a dedicated email.** This keeps your removal request activity separate from your main inbox.
-
----
-
-## Does This Actually Work?
-
-Yes, with caveats:
-
-- **Most brokers comply.** They're legally required to under GDPR (EU) and CCPA (California). Even brokers not covered by these laws often honor requests to avoid liability.
-- **Some require manual steps.** About 20-30% of brokers will respond asking you to:
-  - Click a confirmation link (Eraser detects these and shows them to you)
-  - Fill out an opt-out form on their website (Eraser tracks these as "pending tasks")
-  - Verify your identity via email reply
-- **It's not instant.** Brokers have up to 30-45 days to process requests (varies by law). Some are faster.
-- **You'll need to repeat this.** Data brokers buy and sell data continuously. Running Eraser monthly keeps you off their lists.
-
-**The Pipeline view** in Eraser's web UI shows you exactly which brokers need manual attention. It's not fully automated, but it's free—and it does the tedious work of sending 750+ emails and tracking responses for you.
-
----
-
-## How It Compares
-
-| Service | Price | Brokers | Open Source |
-|---------|-------|---------|-------------|
-| **Eraser** | Free | 750+ | Yes |
-| Incogni | $77/year | 180+ | No |
-| DeleteMe | $129/year | 750+ | No |
-| Privacy Duck | $500+/year | 500+ | No |
-
----
-
-## Contributing
-
-Contributions are welcome. The most helpful things:
-
-- **Adding brokers** — The database at `data/brokers.yaml` can always use more entries
-- **Template improvements** — Better wording for removal requests
-- **Bug fixes** — Found something broken? PRs welcome
-- **Documentation** — Typos, clarifications, better examples
-
----
-
-## Project Structure
-
-```
-eraser/
-├── cmd/eraser/main.go       # CLI entry point
-├── internal/
-│   ├── broker/              # Broker loading and filtering
-│   ├── config/              # Configuration handling
-│   ├── email/               # SMTP, SendGrid, Resend senders
-│   ├── history/             # SQLite request tracking
-│   ├── template/            # Email template rendering
-│   └── web/                 # Web UI server and handlers
-├── data/brokers.yaml        # 750+ broker database
-└── config.example.yaml      # Example configuration
+```sh
+git remote add upstream https://github.com/digisamroc/eraser.git # if absent
+./scripts/update-upstream.sh
 ```
 
----
+The script fetches current Gitea main and upstream, creates a dedicated worktree,
+and stages a merge for review without executing upstream code or pushing. Expect
+conflicts in security-sensitive components. Review the catalog diff separately;
+never infer ownership from a matching domain or broker-list membership. Preserve
+all safety regression tests, update SECURITY_AUDIT.md, run the same checks as CI,
+commit and push **Gitea main first**, then fast-forward the GitHub build fork.
+`upstream-watch` reports new upstream commits weekly; it never auto-merges them.
+Treat GitHub dependency PRs similarly: integrate through Gitea before publication.
 
-## License
+The source currently retains upstream's original module path to keep merge
+history understandable. No LICENSE file was present in the audited upstream
+revision; clarify licensing with the upstream maintainer before redistribution
+beyond the requested fork/build workflow.
 
-MIT — do whatever you want with it.
+## Local verification
 
----
+Use Go 1.27.1. No application credentials are needed.
 
-## Disclaimer
+```sh
+go mod verify
+go test -race ./...
+go vet ./...
+staticcheck ./...
+gosec ./...
+govulncheck ./...
+gitleaks git . --redact
+gitleaks dir . --redact
+docker build -t eraser:test .
+trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 eraser:test
+```
 
-This tool sends legitimate data removal requests based on privacy laws. It's not legal advice. Not all brokers are required to comply with all requests, and response times vary. But it works, and it's free.
+Fixtures use `.invalid` domains and local stub servers only. Do not supply real
+SMTP credentials or enable actual broker requests while developing tests.
