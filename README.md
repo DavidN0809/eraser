@@ -238,3 +238,9 @@ trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 eraser
 
 Fixtures use `.invalid` domains and local stub servers only. Do not supply real
 SMTP credentials or enable actual broker requests while developing tests.
+
+The publishing job runs on a separate clean runner, downloads the checked
+candidate artifact, verifies its checksum and rescans it before login/push.
+Source tests and pull requests run with contents-read permission only and never
+receive publishing secrets. The publishing runner never checks out or executes
+repository source code.

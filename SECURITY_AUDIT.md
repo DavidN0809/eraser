@@ -150,3 +150,9 @@ backup restore or multi-architecture runtime was exercised against real data.
 The published image targets linux/amd64. The removed automation cannot run in
 this image. Keep delivery disabled until your own exact-recipient review is
 complete.
+
+The publishing job runs on a separate clean runner, downloads the checked
+candidate artifact, verifies its checksum and rescans it before login/push.
+Source tests and pull requests run with contents-read permission only and never
+receive publishing secrets. The publishing runner never checks out or executes
+repository source code.
